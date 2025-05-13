@@ -1,0 +1,85 @@
+CATEGORY: Original
+METHOD: None
+Using original dataset with 1024 features.
+
+X_train shape: (2871, 1024)
+y_train shape: (2871,)
+X_test shape: (2871, 1024)
+y_test shape: (2871,) 
+
+NAME: original
+RMSE: 0.8754251628689073
+----------------------------------------
+
+CATEGORY: Feature Selection
+METHOD: Random selection of 500 features.
+
+X_train shape: (2871, 500)
+y_train shape: (2871,)
+X_test shape: (2871, 500)
+y_test shape: (2871,) 
+
+NAME: random_fs
+RMSE: 0.8915076120960996
+----------------------------------------
+
+CATEGORY: Feature Selection
+METHOD: Variance threshold of 0.95.
+
+X_train shape: (2871, 313)
+y_train shape: (2871,)
+X_test shape: (2871, 313)
+y_test shape: (2871,) 
+
+NAME: variance_fs
+RMSE: 0.8540320110948985
+----------------------------------------
+
+CATEGORY: Feature Selection
+METHOD: Feature importance computed from 15 tree-based estimators.
+
+X_train shape: (2871, 366)
+y_train shape: (2871,)
+X_test shape: (2871, 366)
+y_test shape: (2871,) 
+
+NAME: tree_fs
+RMSE: 0.8519895614686827
+----------------------------------------
+
+CATEGORY: Dimensionality Reduction
+METHOD: PCA to 500 feature dimensions.
+
+X_train shape: (2871, 500)
+y_train shape: (2871,)
+X_test shape: (2871, 500)
+y_test shape: (2871,) 
+
+NAME: pca_dr
+RMSE: 0.8399310379071653
+----------------------------------------
+
+CATEGORY: Dimensionality Reduction
+METHOD: Gaussian random projection to 500 feature dimensions.
+
+X_train shape: (2871, 500)
+y_train shape: (2871,)
+X_test shape: (2871, 500)
+y_test shape: (2871,) 
+
+NAME: random_dr
+RMSE: 0.9253505703152561
+----------------------------------------
+
+CATEGORY: Dimensionality Reduction
+METHOD: Feature agglomeration to 500 clusters.
+
+X_train shape: (2871, 500)
+y_train shape: (2871,)
+X_test shape: (2871, 500)
+y_test shape: (2871,) 
+
+NAME: agglo_dr
+RMSE: 0.8467470522318299
+----------------------------------------
+

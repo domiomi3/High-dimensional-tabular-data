@@ -1,0 +1,4 @@
+/home/fr/fr_fr/fr_dm339/miniconda3/envs/tabpfn/lib/python3.13/site-packages/tabpfn/regressor.py:450: UserWarning: Number of features 1024 is greater than the maximum Number of features 500 supported by the model. You may see degraded performance.
+  X, y, feature_names_in, n_features_in = validate_Xy_fit(
+/home/fr/fr_fr/fr_dm339/miniconda3/envs/tabpfn/lib/python3.13/site-packages/sklearn/utils/validation.py:2732: UserWarning: X has feature names, but SelectFromModel was fitted without feature names
+  warnings.warn(

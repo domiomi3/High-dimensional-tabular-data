@@ -1,0 +1,16 @@
+
+============================= JOB FEEDBACK =============================
+
+NodeName=uc3n082
+Job ID: 184904
+Array Job ID: 184659_0
+Cluster: uc3
+User/Group: fr_dm339/fr_fr
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 72
+CPU Utilized: 00:01:45
+CPU Efficiency: 1.03% of 02:49:12 core-walltime
+Job Wall-clock time: 00:02:21
+Memory Utilized: 1.50 GB
+Memory Efficiency: 9.98% of 15.00 GB (15.00 GB/node)

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SEEDS=(44 529 1880)
+SEEDS=(1 44 75 100 241 529 996 1880 5456 98732)
 SEED_STRING="${SEEDS[@]}"
 
 echo $SEED_STRING > used_seeds.txt

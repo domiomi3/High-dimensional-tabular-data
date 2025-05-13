@@ -1,8 +1,8 @@
 #!/bin/bash 
-#SBATCH --partition=dev_gpu_h100
+#SBATCH --partition=gpu_h100
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=baselines
-#SBATCH --time=3:00
+#SBATCH --time=10:00
 #SBATCH --mem=15gb
 #SBATCH --output=LOGS//%x.%N.%A.%a.out
 #SBATCH --error=LOGS//%x.%N.%A.%a.err
