@@ -176,3 +176,4 @@ cython_debug/
 used_seeds.txt
 LOGS/
 dataset
+results_old/

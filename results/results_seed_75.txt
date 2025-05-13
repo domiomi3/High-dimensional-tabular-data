@@ -8,7 +8,7 @@ X_test shape: (2871, 1024)
 y_test shape: (2871,) 
 
 NAME: original
-RMSE: 0.8648901302599302
+RMSE: 0.8740597895845821
 ----------------------------------------
 
 CATEGORY: Feature Selection
@@ -20,7 +20,7 @@ X_test shape: (2871, 500)
 y_test shape: (2871,) 
 
 NAME: random_fs
-RMSE: 0.8904837914331765
+RMSE: 0.8961715025913866
 ----------------------------------------
 
 CATEGORY: Feature Selection
@@ -32,19 +32,19 @@ X_test shape: (2871, 313)
 y_test shape: (2871,) 
 
 NAME: variance_fs
-RMSE: 0.8520602044469905
+RMSE: 0.8763999760063536
 ----------------------------------------
 
 CATEGORY: Feature Selection
 METHOD: Feature importance computed from 15 tree-based estimators.
 
-X_train shape: (2871, 378)
+X_train shape: (2871, 371)
 y_train shape: (2871,)
-X_test shape: (2871, 378)
+X_test shape: (2871, 371)
 y_test shape: (2871,) 
 
 NAME: tree_fs
-RMSE: 0.8311086509227757
+RMSE: 0.8519281535342123
 ----------------------------------------
 
 CATEGORY: Dimensionality Reduction
@@ -56,7 +56,7 @@ X_test shape: (2871, 500)
 y_test shape: (2871,) 
 
 NAME: pca_dr
-RMSE: 0.84462580771457
+RMSE: 0.8564357549291265
 ----------------------------------------
 
 CATEGORY: Dimensionality Reduction
@@ -68,7 +68,7 @@ X_test shape: (2871, 500)
 y_test shape: (2871,) 
 
 NAME: random_dr
-RMSE: 0.9196824120189749
+RMSE: 0.965870575630694
 ----------------------------------------
 
 CATEGORY: Dimensionality Reduction
@@ -80,6 +80,6 @@ X_test shape: (2871, 500)
 y_test shape: (2871,) 
 
 NAME: agglo_dr
-RMSE: 0.8430199847252924
+RMSE: 0.8717157947248135
 ----------------------------------------
 
