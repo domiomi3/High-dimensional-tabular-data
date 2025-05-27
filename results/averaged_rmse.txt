@@ -1,8 +1,0 @@
-Average RMSE per method across seeds:
-original    : 0.856476 (n=10)
-random_fs   : 0.883283 (n=10)
-variance_fs : 0.852179 (n=10)
-tree_fs     : 0.838603 (n=10)
-pca_dr      : 0.838586 (n=10)
-random_dr   : 0.914452 (n=10)
-agglo_dr    : 0.844518 (n=10)
