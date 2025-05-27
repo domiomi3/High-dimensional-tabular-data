@@ -4,14 +4,13 @@ This code performs [feature selection](https://scikit-learn.org/stable/modules/f
 
 The original dataset consists of 5,742 samples and 1,024 features + a target variable.
 
-To download the dataset:
+To run sklearn methods and TabPFN (or pass any subset of the methods):
 ```
-wget https://api.openml.org/data/download/22125264/dataset
+sklearn run_baselines.py --method original random_fs variance_fs tree_fs pca_dr random_dr agglo_dr 
+```
+or
+```
+bash run_baselines.sh
 ```
 
-To run sklearn methods and TabPFN (*please adjust the run_baselines.sh and run_average.sh to your cluster specification*):
-```
-bash run_all.sh
-```
-
-The results are stored in the results/ directory. Please, refer to the averaged_rmse.txt for the final performances. 
+The results are saved to .csv files in the results/ directory.
