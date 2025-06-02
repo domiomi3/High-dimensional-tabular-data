@@ -1,12 +1,13 @@
 #!/bin/bash 
 #SBATCH --partition=gpu_h100
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=baselines_all
-#SBATCH --time=5:00:00
+#SBATCH --job-name=baselines_all_qsa
+#SBATCH --time=3:00:00
 #SBATCH --mem=15gb
+#SBATCH --export=ALL
 #SBATCH --output=LOGS//%x.%N.%A.%a.out
 #SBATCH --error=LOGS//%x.%N.%A.%a.err
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=ALL
 #SBATCH --mail-user=matus.dominika@gmail.com
 
 source /pfs/data6/home/fr/fr_fr/fr_dm339/miniconda3/bin/activate tabpfn
