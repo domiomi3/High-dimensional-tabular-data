@@ -159,7 +159,7 @@ def run_training(X, y, task, method, config, logger):
     results_dir = config["results_dir"]
     timestamp = config["timestamp"]
     os.makedirs(results_dir, exist_ok=True)
-    temp_results_path = f"{results_dir}/{dataset_name}_{method}_{timestamp}.csv"
+    temp_results_path = f"{results_dir}/{dataset_name}_{method}_s:{config["random_state"]}_nfts_{config["max_num_feat"]}_varth:{config["var_threshold"]}_ntrest:{config["num_tree_estimators"]}_{timestamp}.csv"
 
     results_arr = [] # array for saving per step results + metadata
     metadata_flag = True # print metadata once
@@ -204,6 +204,12 @@ def run_training(X, y, task, method, config, logger):
                         logger.info("")
                         logger.info("Training:")
                         logger.info("======================")
+                    else:
+                        # preprocess data after the first iteration
+                        X_train, X_test, y_train = preprocess_dataset(
+                            X_train, X_test, y_train, metadata_flag, method, 
+                            fold_random_state, config, logger
+                        )
 
                     # training step + saving and logging results
                     ignore_limits = True if X_train.shape[1] > 500 else False
@@ -262,23 +268,25 @@ def run_on_dataset(config, logger):
 
     # Run TabPFN with selected method(s)
     all_results = []
+
     for method in config["method"]:
         results_method = run_training(X, y, task, method, config, logger)
         all_results.extend(results_method)
 
-    # Save results to csv
-    results_dir = config["results_dir"]
-    os.makedirs(results_dir, exist_ok=True)
-    results_path = f"{results_dir}/{config["dataset_name"]}_all_{timestamp}.csv"
-    results_df = pd.DataFrame(all_results)
-    results_df.to_csv(results_path, index=False)
-    logger.info(f"Saved all results to {results_path}")
+    # Save all results to csv
+    if len(config["method"]) > 1: # results for a single method are already saved in run_training
+        results_dir = config["results_dir"]
+        os.makedirs(results_dir, exist_ok=True)
+        results_path = f"{results_dir}/{config["dataset_name"]}_all_s:{config["random_state"]}_nfts_{config["max_num_feat"]}_varth:{config["var_threshold"]}_ntrest:{config["num_tree_estimators"]}_{timestamp}.csv"
+        results_df = pd.DataFrame(all_results)
+        results_df.to_csv(results_path, index=False)
+        logger.info(f"Saved all results to {results_path}")
 
-    # Save config to json
-    config_path = f"{results_dir}/{config['dataset_name']}_config_{timestamp}.json"
-    with open(config_path, "w") as f:
-        json.dump(config, f, indent=4)
-    logger.info(f"Saved config to {config_path}")
+        # Save config to json
+        config_path = f"{results_dir}/{config["dataset_name"]}_all_s:{config["random_state"]}_nfts_{config["max_num_feat"]}_varth:{config["var_threshold"]}_ntrest:{config["num_tree_estimators"]}_{timestamp}_config.json"
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=4)
+        logger.info(f"Saved config to {config_path}")
 
     # log summary
     summary = results_df.groupby("method")[["rmse", "norm_rmse"]].agg(["mean", "std"]).round(4)
@@ -290,7 +298,6 @@ def main(config):
 
     # Ignore TabPFN warnings about feature space dimension
     warnings.filterwarnings("ignore", message="Number of features .* is greater than the maximum.*")
-
 
     for dataset in config["dataset"]:
         dataset_config = config.copy()
