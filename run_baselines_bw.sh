@@ -12,10 +12,10 @@
 #SBATCH --mail-user=matus.dominika@gmail.com
 #SBATCH --array=0-6
 
-set -e
-set -u
-set -o pipefail
-set -x
+# set -e
+# set -u
+# set -o pipefail
+# set -x
 
 CONDA_BASE=/pfs/data6/home/fr/fr_fr/fr_dm339/miniconda3
 ENV_NAME=tabpfn
@@ -28,4 +28,4 @@ METHOD=${methods[$SLURM_ARRAY_TASK_ID]}
 
 echo "Running method: $METHOD"
 
-"$PYTHON_BIN" sklearn_baselines.py --method "$METHOD"
+"$PYTHON_BIN" sklearn_baselines.py --method "$METHOD" --dry_run

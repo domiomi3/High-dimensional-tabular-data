@@ -1,8 +1,7 @@
 import argparse
-import json
-import logging
 import openml 
 import os
+import sys
 import warnings
 
 import numpy as np
@@ -18,15 +17,8 @@ from sklearn.decomposition import PCA
 from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import FeatureAgglomeration
 
-
-def setup_logger(log_level: str):
-    log_level = getattr(logging, log_level.upper(), logging.INFO)
-    logging.basicConfig(
-        level=log_level,
-        format='[%(asctime)s] [%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    return logging.getLogger(__name__)
+sys.path.append(".")
+from utils import *
 
 
 def load_dataset(dataset_id_or_name):
@@ -61,7 +53,6 @@ def run_tabpfn(X_train, y_train, X_test, y_test, ignore_pretraining_limits=False
     predictions = regressor.predict(X_test)
 
     # Evaluate the model
-    # TODO: new sklearn allows rmse, see normalized rmse
     rmse = root_mean_squared_error(y_test, predictions)
     norm_rmse = rmse/np.std(y_test)
     return rmse, norm_rmse
@@ -140,28 +131,19 @@ def preprocess_dataset(X_train, X_test, y_train, metadata_flag, method, random_s
     return X_train, X_test, y_train
 
 
-def run_training(X, y, task, method, config, logger):
+def train(X, y, task, method, config, logger):
     # Load task config
     random_state = config["random_state"]
 
-    # predefined splits from task
     if config["dry_run"]:
         n_repeats, n_folds, n_samples = (2,2,1)
-        logger.info(f"Dry run mode with {n_repeats} repeats, {n_folds} folds, {n_samples} sample")
-        logger.info("======================")
-    else:
+    else:     # predefined splits from task
         n_repeats, n_folds, n_samples = task.get_split_dimensions()
-        logger.info(f"Using split dimensions: repeats={n_repeats}, folds={n_folds}, samples={n_samples}")
-        logger.info("======================")
+    
+    logger.info(f"Using split dimensions: repeats={n_repeats}, folds={n_folds}, samples={n_samples}")
+    logger.info("======================")
 
-    # for saving intemediate results
-    dataset_name = config["dataset_name"]
-    results_dir = config["results_dir"]
-    timestamp = config["timestamp"]
-    os.makedirs(results_dir, exist_ok=True)
-    temp_results_path = f"{results_dir}/{dataset_name}_{method}_s:{config["random_state"]}_nfts_{config["max_num_feat"]}_varth:{config["var_threshold"]}_ntrest:{config["num_tree_estimators"]}_{timestamp}.csv"
-
-    results_arr = [] # array for saving per step results + metadata
+    results_list = [] # list for saving per step results + metadata
     metadata_flag = True # print metadata once
 
     # cross-validation
@@ -214,7 +196,7 @@ def run_training(X, y, task, method, config, logger):
                     # training step + saving and logging results
                     ignore_limits = True if X_train.shape[1] > 500 else False
                     rmse, norm_rmse = run_tabpfn(X_train, y_train, X_test, y_test, ignore_pretraining_limits=ignore_limits)
-                    results_arr.append({
+                    results_list.append({
                         "dataset_name": config["dataset_name"],
                         "method": method,
                         "repeat": repeat_idx,
@@ -238,11 +220,15 @@ def run_training(X, y, task, method, config, logger):
                     metadata_flag = False  
 
     # save per-method results
-    results_pd = pd.DataFrame(results_arr)
-    results_pd.to_csv(temp_results_path, index=False)
-    logger.info(f"Saved {method} results to {temp_results_path}")
+    os.makedirs(config["results_dir"], exist_ok=True)
+    temp_results_path = f'{generate_filename_prefix(config, config["method"][0])}.csv'
+    save_results_to_csv(results_list, temp_results_path, logger)
+
+    # Save per-method config to json
+    config_path = f'{generate_filename_prefix(config, config["method"][0])}_config.json'
+    save_config_to_json(config, config_path, logger)
     
-    return results_arr
+    return results_list
 
 
 def run_on_dataset(config, logger):
@@ -268,27 +254,23 @@ def run_on_dataset(config, logger):
 
     # Run TabPFN with selected method(s)
     all_results = []
-
     for method in config["method"]:
-        results_method = run_training(X, y, task, method, config, logger)
+        results_method = train(X, y, task, method, config, logger)
         all_results.extend(results_method)
+    results_dir = config["results_dir"]
 
     # Save all results to csv
     if len(config["method"]) > 1: # results for a single method are already saved in run_training
-        results_dir = config["results_dir"]
         os.makedirs(results_dir, exist_ok=True)
-        results_path = f"{results_dir}/{config["dataset_name"]}_all_s:{config["random_state"]}_nfts_{config["max_num_feat"]}_varth:{config["var_threshold"]}_ntrest:{config["num_tree_estimators"]}_{timestamp}.csv"
-        results_df = pd.DataFrame(all_results)
-        results_df.to_csv(results_path, index=False)
-        logger.info(f"Saved all results to {results_path}")
+        results_path = f'{generate_filename_prefix(config, "all")}.csv'
+        save_results_to_csv(all_results, results_path, logger)
 
         # Save config to json
-        config_path = f"{results_dir}/{config["dataset_name"]}_all_s:{config["random_state"]}_nfts_{config["max_num_feat"]}_varth:{config["var_threshold"]}_ntrest:{config["num_tree_estimators"]}_{timestamp}_config.json"
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=4)
-        logger.info(f"Saved config to {config_path}")
+        config_path = f'{generate_filename_prefix(config, "all")}_config.json'
+        save_config_to_json(config, config_path, logger)
 
     # log summary
+    results_df = pd.DataFrame(all_results)
     summary = results_df.groupby("method")[["rmse", "norm_rmse"]].agg(["mean", "std"]).round(4)
     logger.info("Summary:\n%s", summary.to_string())
 
@@ -304,7 +286,6 @@ def main(config):
         dataset_config["dataset"] = dataset # single dataset
         run_on_dataset(dataset_config, logger)
    
-
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Run TabPFN with optional sklearn feature selection or dimensionality reduction methods.")
