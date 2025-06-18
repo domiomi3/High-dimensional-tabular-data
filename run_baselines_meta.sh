@@ -24,7 +24,6 @@ PYTHON_SCRIPT="$WORKING_DIR/train_sklearn.py"
 
 source "$CONDA_BASE"/bin/activate "$ENV_NAME"
 
-# methods=(original kbest_fs pca_dr random_dr kpca_dr ica_dr)
 methods=(original random_fs variance_fs tree_fs kbest_fs pca_dr random_dr kpca_dr agglo_dr ica_dr)
 METHOD=${methods[$SLURM_ARRAY_TASK_ID]}
 

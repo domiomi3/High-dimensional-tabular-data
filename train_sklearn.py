@@ -51,7 +51,6 @@ def infer_tabpfn(X_train, y_train, X_test, y_test, task_type, ignore_pretraining
     elif task_type == "classification":
         model = TabPFNClassifier(ignore_pretraining_limits=ignore_pretraining_limits)
         model.fit(X_train, y_train)
-
         if metric_override == "log_loss":
             probs = model.predict_proba(X_test)
             model_cleanup(model)
@@ -59,7 +58,10 @@ def infer_tabpfn(X_train, y_train, X_test, y_test, task_type, ignore_pretraining
         else:  # default to roc auc
             preds = model.predict(X_test)
             model_cleanup(model)
-            return roc_auc_score(y_test, preds)
+            if len(y_train.unique()) > 2: #multi-class
+                return roc_auc_score(y_test, preds, multi_class='ovr')
+            else:
+                return roc_auc_score(y_test, preds)
 
     else:
         raise ValueError(f"Unknown task type: {task_type}")

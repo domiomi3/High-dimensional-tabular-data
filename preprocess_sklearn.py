@@ -41,7 +41,6 @@ def remove_const_columns(X_train, X_test, metadata_flag, logger):
 
 def normalize_numeric(X_train, X_test, num_cols, metadata_flag, logger):
     scaler = StandardScaler()
-    breakpoint()
     X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
     X_test[num_cols] = scaler.transform(X_test[num_cols])
 
