@@ -9,13 +9,19 @@ Install conda and create environment:
 conda env create -f env.yaml
 ```
 
-To run sklearn methods and TabPFN (or pass any subset of the methods):
+To run sklearn methods and TabPFN (or pass any subset of the methods): 
 ```
-sklearn run_baselines.py --method original random_fs variance_fs tree_fs pca_dr random_dr agglo_dr 
+sklearn run_baselines.py --method all --dataset <openml-dataset/task-id>
 ```
 or
 ```
-bash run_baselines.sh
+bash run_baselines_meta.sh --dataset <openml-dataset/task-id>
+```
+Task IDs:
+```
+QSAR-TID-11: 363697 (default)
+Bioresponse: 363620
+hiva: 363677 
 ```
 
 The results are saved to .csv files in the results/ directory.
