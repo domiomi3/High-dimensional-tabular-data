@@ -12,75 +12,104 @@ sys.path.append(".")
 from utils import *
 
 
-def plot_results(data_path, fig_dir, fig_path, metric, manual_df, title, method_name_map):
+def plot_results(data_paths, fig_dir, fig_path, metric, manual_df, title, method_name_map, setting_labels):
     os.makedirs(fig_dir, exist_ok=True)
     fig_abs_path = os.path.join(fig_dir, fig_path)
 
-    base_color = "#a6d8af"
-    manual_color = "#f4a6a6"
-    base_e_color = "#3e7949"
-    manual_e_color = "#c96a6a"
-
-    all_files = glob.glob(data_path)
-
-    if not all_files:
-        print(f"[WARNING] No files matched: {data_path}")
-        return
+    # Customize as needed
+    setting_colors = ['#a6d8af', '#f4d8af', '#afc8f4']
+    setting_edgecolors = ['#3e7949', '#a67b00', '#2b5db2']
 
     dfs = []
-    hp_values = None  # to store HPs from the first file
+    hp_values = None
 
-    for file in all_files:
-        df = pd.read_csv(file)
-        method_name = df["method"].iloc[0]
-        df["method"] = method_name
-        dfs.append(df)
+    for setting_idx, folder_pattern in enumerate(data_paths):
+        setting_label = setting_labels[setting_idx]
+        all_files = glob.glob(folder_pattern)
+        if not all_files:
+            print(f"[WARNING] No files matched: {folder_pattern}")
+            continue
 
-        if hp_values is None:
-            hp_values = extract_hyperparams_from_filename(file)
-    
-    if hp_values: # extend the title with HPs
+        for file in all_files:
+            df = pd.read_csv(file)
+            method_name = df["method"].iloc[0]
+            df["method"] = method_name
+            df["setting"] = setting_label
+            dfs.append(df)
+
+            if hp_values is None:
+                hp_values = extract_hyperparams_from_filename(file)
+
+    if not dfs:
+        print("[ERROR] No data loaded.")
+        return
+
+    if hp_values:
         hp_suffix = (
             f" | seed={hp_values['seed']}, nf={hp_values['nf']}, "
             f"vt={hp_values['vt']}, nte={hp_values['nte']}"
         )
-        title += hp_suffix
+        # title += hp_suffix
 
     combined_df = pd.concat(dfs, ignore_index=True)
-    agg_df = combined_df.groupby("method")[metric].agg(["mean", "std"]).reset_index()
+    agg_df = combined_df.groupby(["method", "setting"])[metric].agg(["mean", "std"]).reset_index()
 
-    agg_df["method_display"] = agg_df["method"].map(method_name_map)
+    methods = sorted(agg_df["method"].unique())
+    settings = setting_labels
+    num_settings = len(settings)
 
-    manual_methods = set(manual_df["method"].tolist())
-    final_df = pd.concat([agg_df, manual_df], ignore_index=True)
-    final_df_sorted = final_df.sort_values(by="mean")
-
-    bar_colors = [manual_color if m in manual_methods else base_color for m in final_df_sorted["method"]]
-    e_colors = [manual_e_color if m in manual_methods else base_e_color for m in final_df_sorted["method"]]
-
-    fig_width = max(12, len(final_df_sorted) * 0.6)
+    width = 0.2
+    x = np.arange(len(methods))
+    fig_width = max(12, len(methods) * 0.8)
     _, ax = plt.subplots(figsize=(fig_width, 6))
-    x_pos = np.arange(len(final_df_sorted))
 
+       # Plot method bars from CSVs (grouped per setting)
+    for i, setting in enumerate(settings):
+        df_s = agg_df[agg_df["setting"] == setting]
+        df_s = df_s.set_index("method").reindex(methods).reset_index()
+
+        ax.bar(
+            x + (i - 1) * width,  # centered grouping
+            df_s["mean"],
+            width=width,
+            yerr=df_s["std"],
+            color=setting_colors[i],
+            ecolor=setting_edgecolors[i],
+            capsize=0,
+            linewidth=2,
+            label=setting
+        )
+
+    # === Plot manual_df as a separate group ===
+    manual_methods = manual_df["method"].tolist()
+    manual_x = np.arange(len(methods), len(methods) + len(manual_methods))
     ax.bar(
-        x=x_pos,
-        height=final_df_sorted["mean"],
-        yerr=final_df_sorted["std"],
-        color=bar_colors,
+        manual_x,
+        manual_df["mean"],
+        width=width,
+        yerr=manual_df["std"],
+        color="#f4a6a6",
+        ecolor="#c96a6a",
         capsize=0,
-        ecolor=e_colors,
-        linewidth=2
+        linewidth=2,
+        label="TabArena models"
     )
 
-    ax.grid(True, axis='y', linestyle='-', color='lightgray', linewidth=1)
-    ax.set_axisbelow(True)
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels(final_df_sorted["method_display"], fontsize=11, rotation=30, ha="right")
-    ax.set_ylabel(metric.replace("_", " ").title().upper(), fontsize=12)
+    # === Set combined x-axis labels ===
+    method_labels = [method_name_map.get(m, m) for m in methods] + manual_df["method_display"].tolist()
+    x_all = np.concatenate([x, manual_x])
+
+    ax.set_xticks(x_all)
+    ax.set_xticklabels(method_labels, fontsize=11, rotation=30, ha="right")
+
+    ax.set_ylabel(metric.replace("_", " ").title().lower(), fontsize=12)
     ax.set_title(title, fontsize=13)
 
-    y_min = (final_df_sorted["mean"] - final_df_sorted["std"]).min()
-    y_max = (final_df_sorted["mean"] + final_df_sorted["std"]).max()
+    all_means = pd.concat([agg_df["mean"], manual_df["mean"]])
+    all_stds = pd.concat([agg_df["std"], manual_df["std"]])
+    y_min = (all_means - all_stds).min()
+    y_max = (all_means + all_stds).max()
+
     y_range = y_max - y_min
     if y_range < 0.05:
         mid = (y_min + y_max) / 2
@@ -98,25 +127,21 @@ def plot_results(data_path, fig_dir, fig_path, metric, manual_df, title, method_
     ax.yaxis.set_major_locator(FixedLocator(ticks))
     ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
+    ax.grid(True, axis='y', linestyle='-', color='lightgray', linewidth=1)
+    ax.set_axisbelow(True)
     ax.xaxis.set_tick_params(width=0)
     ax.yaxis.set_tick_params(width=1)
     for spine in ax.spines.values():
         spine.set_color('gray')
         spine.set_linewidth(1)
 
-    legend_handles = [
-        mpatches.Patch(color=base_color, label="TabPFN with sklearn methods"),
-        mpatches.Patch(color=manual_color, label="TabArena models")
-    ]
-    legend = ax.legend(
-        handles=legend_handles,
+    ax.legend(
         loc='lower center',
         bbox_to_anchor=(0.5, 1.12),
-        ncol=2,
+        ncol=4,
         frameon=True,
         fontsize=11
-    )
-    legend.get_frame().set_edgecolor('gray')
+    ).get_frame().set_edgecolor('gray')
 
     plt.tight_layout()
     plt.savefig(fig_abs_path)
@@ -141,8 +166,12 @@ if __name__ == "__main__":
    
     datasets = [
         {
-            "data_path": "./results_qsar/*.csv",
-            "fig_path": f"QSAR_{timestamp}.pdf",
+            "data_paths": [
+               "./results_qsar/*.csv",
+              "./results_qsar_150/*.csv",
+              "./results_qsar_old/*.csv"
+          ],
+            "fig_path": f"QSAR_grouped_{timestamp}.pdf",
             "metric": "rmse",
             "title": "QSAR-TID-11(↓)",
             "manual_df": pd.DataFrame({
@@ -150,32 +179,43 @@ if __name__ == "__main__":
                 "method_display": ["RealMLP", "TabM", "MNCA"],
                 "mean": [0.763, 0.761, 0.770],
                 "std": [0.047, 0.050, 0.044]
-            })
+            }),
+            "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
         },
-        # {
-        #     "data_path": "./results_bioresponse/*.csv",
-        #     "fig_path": f"bioresponse_{timestamp}.pdf",
-        #     "metric": "auc_roc",
-        #     "title": "Bioresponse(↑)",
-        #     "manual_df": pd.DataFrame({
-        #         "method": ["RF", "XGBoost", "LightGBM", "CatBoost"],
-        #         "method_display": ["RF", "XGBoost", "LightGBM", "CatBoost"],
-        #         "mean": [0.873, 0.873, 0.872, 0.872],
-        #         "std": [0.007, 0.008, 0.008, 0.009]
-        #     })
-        # },
-        # {
-        #     "data_path": "./results_hiva/*.csv",
-        #     "fig_path": f"hiva_{timestamp}.pdf",
-        #     "metric": "log_loss",
-        #     "title": "hiva_agnostic(↓)",
-        #     "manual_df": pd.DataFrame({
-        #         "method": ["LightGBM", "EBM"],
-        #         "method_display": ["LightGBM", "EBM"],
-        #         "mean": [0.175, 0.174],
-        #         "std": [0.001, 0.001]
-        #     })        
-        # }
+        {
+            "data_paths": [
+                "./results_bioresponse/*.csv",
+                "./results_bioresponse_150/*.csv",
+                "./results_bioresponse_old/*.csv"
+            ],
+            "fig_path": f"bioresponse_grouped_{timestamp}.pdf",
+            "metric": "auc_roc",
+            "title": "Bioresponse (↑)",
+            "manual_df": pd.DataFrame({
+                "method": ["RF", "XGBoost", "LightGBM", "CatBoost"],
+                "method_display": ["RF", "XGBoost", "LightGBM", "CatBoost"],
+                "mean": [0.873, 0.873, 0.872, 0.872],
+                "std": [0.007, 0.008, 0.008, 0.009]
+            }),
+            "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
+        },
+        {
+            "data_paths":  [
+                "./results_hiva/*.csv",
+                "./results_hiva_150/*.csv",
+                "./results_hiva_old/*.csv"
+            ],
+            "fig_path": f"hiva_grouped_{timestamp}.pdf",
+            "metric": "log_loss",
+            "title": "hiva_agnostic(↓)",
+            "manual_df": pd.DataFrame({
+                "method": ["LightGBM", "EBM"],
+                "method_display": ["LightGBM", "EBM"],
+                "mean": [0.175, 0.174],
+                "std": [0.001, 0.001]
+            }),
+            "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
+        }
     ]
 
     for dataset in datasets:

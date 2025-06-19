@@ -49,7 +49,7 @@ def normalize_numeric(X_train, X_test, num_cols, metadata_flag, logger):
     return pd.DataFrame(X_train), pd.DataFrame(X_test)
 
 
-def encode_cateogrical_labels(y_train, y_test, metadata_flag, logger):
+def encode_categorical_labels(y_train, y_test, metadata_flag, logger):
     # Convert categorical string labels ("yes"/"no") to binary integers
     if y_train.dtype == "object" or y_train.dtype.name == "category":
         le = LabelEncoder()
@@ -204,7 +204,7 @@ def run_preprocessing_pipeline(
     #TODO: LabelCleaner from AutoGluon
     #TODO: prob should be done elsewhere
     if task_type == "classification":
-        y_train, y_test = encode_cateogrical_labels(y_train, y_test, metadata_flag, logger)
+        y_train, y_test = encode_categorical_labels(y_train, y_test, metadata_flag, logger)
 
     # 3. Encode categoricals (for selected methods only)
     if method in ["variance_fs", "tree_fs", "kbest_fs", "pca_dr", "random_dr", "agglo_dr", "ica_dr", "kpca_dr"]:

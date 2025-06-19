@@ -4,7 +4,7 @@
 #SBATCH --job-name=qsar_all
 #SBATCH --time=1:15:00
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32gb
+#SBATCH --mem=16gb
 #SBATCH --export=ALL
 #SBATCH --output=/work/dlclarge2/matusd-toy_example/LOGS//%x.%N.%A.%a.out
 #SBATCH --error=/work/dlclarge2/matusd-toy_example/LOGS//%x.%N.%A.%a.err
