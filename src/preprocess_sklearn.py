@@ -98,7 +98,7 @@ def apply_sklearn_method(X_train, X_test, y_train, metadata_flag, method, random
             # breakpoint()
         if task_type == "regression":
             model = ExtraTreesRegressor(n_estimators=n_tree_estimators)
-        elif task_type == "classification":
+        elif task_type == "multiclass" or task_type=="binary":
             model = ExtraTreesClassifier(n_estimators=n_tree_estimators)
         model.fit(X_train, y_train)
         model = SelectFromModel(model, prefit=True)
@@ -203,7 +203,7 @@ def run_preprocessing_pipeline(
     # 2. Label binarization (only for classification)
     #TODO: LabelCleaner from AutoGluon
     #TODO: prob should be done elsewhere
-    if task_type == "classification":
+    if task_type == "multiclass" or task_type == "binary":
         y_train, y_test = encode_categorical_labels(y_train, y_test, metadata_flag, logger)
 
     # 3. Encode categoricals (for selected methods only)

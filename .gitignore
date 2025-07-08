@@ -177,3 +177,10 @@ used_seeds.txt
 LOGS/
 dataset
 results_old/
+
+experiments/results/
+experiments/slurm_logs/
+external/
+external/tabrepo/
+OLDDDDD
+

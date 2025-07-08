@@ -81,23 +81,27 @@ def plot_results(data_paths, fig_dir, fig_path, metric, manual_df, title, method
         )
 
     # === Plot manual_df as a separate group ===
-    manual_methods = manual_df["method"].tolist()
-    manual_x = np.arange(len(methods), len(methods) + len(manual_methods))
-    ax.bar(
-        manual_x,
-        manual_df["mean"],
-        width=width,
-        yerr=manual_df["std"],
-        color="#f4a6a6",
-        ecolor="#c96a6a",
-        capsize=0,
-        linewidth=2,
-        label="TabArena models"
-    )
+    if not manual_df.empty:
+        manual_methods = manual_df["method"].tolist()
+        manual_x = np.arange(len(methods), len(methods) + len(manual_methods))
+        ax.bar(
+            manual_x,
+            manual_df["mean"],
+            width=width,
+            yerr=manual_df["std"],
+            color="#f4a6a6",
+            ecolor="#c96a6a",
+            capsize=0,
+            linewidth=2,
+            label="TabArena models"
+        )
 
     # === Set combined x-axis labels ===
-    method_labels = [method_name_map.get(m, m) for m in methods] + manual_df["method_display"].tolist()
-    x_all = np.concatenate([x, manual_x])
+    method_labels = [method_name_map.get(m, m) for m in methods] 
+    # + manual_df["method_display"].tolist()
+    x_all = np.concatenate([x])
+    # x_all = np.concatenate([x, manual_x])
+
 
     ax.set_xticks(x_all)
     ax.set_xticklabels(method_labels, fontsize=11, rotation=30, ha="right")
@@ -105,8 +109,10 @@ def plot_results(data_paths, fig_dir, fig_path, metric, manual_df, title, method
     ax.set_ylabel(metric.replace("_", " ").title().lower(), fontsize=12)
     ax.set_title(title, fontsize=13)
 
-    all_means = pd.concat([agg_df["mean"], manual_df["mean"]])
-    all_stds = pd.concat([agg_df["std"], manual_df["std"]])
+    # all_means = pd.concat([agg_df["mean"], manual_df["mean"]])
+    all_means = pd.concat([agg_df["mean"]])
+    # all_stds = pd.concat([agg_df["std"], manual_df["std"]])
+    all_stds = pd.concat([agg_df["std"]])
     y_min = (all_means - all_stds).min()
     y_max = (all_means + all_stds).max()
 
@@ -165,57 +171,79 @@ if __name__ == "__main__":
     }
    
     datasets = [
+        # {
+        #     "data_paths": [
+        #        "./results_test_org/*.csv",
+        #        "./results_test_tab/*.csv",
+        #   ],
+        #     "fig_path": f"QSAR_comparison_{timestamp}.png",
+        #     "metric": "rmse",
+        #     "title": "QSAR-TID-11(↓)",
+        #     "manual_df": pd.DataFrame(),
+        #     "setting_labels": ["original impl(500)", "tabarena impl(500)"]
+        # },
         {
             "data_paths": [
-               "./results_qsar/*.csv",
-              "./results_qsar_150/*.csv",
-              "./results_qsar_old/*.csv"
+               "./results_hiva_org/*.csv",
+               "./results_hiva_tab/*.csv",
           ],
-            "fig_path": f"QSAR_grouped_{timestamp}.pdf",
-            "metric": "rmse",
-            "title": "QSAR-TID-11(↓)",
-            "manual_df": pd.DataFrame({
-                "method": ["RealMLP", "TabM", "MNCA"],
-                "method_display": ["RealMLP", "TabM", "MNCA"],
-                "mean": [0.763, 0.761, 0.770],
-                "std": [0.047, 0.050, 0.044]
-            }),
-            "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
-        },
-        {
-            "data_paths": [
-                "./results_bioresponse/*.csv",
-                "./results_bioresponse_150/*.csv",
-                "./results_bioresponse_old/*.csv"
-            ],
-            "fig_path": f"bioresponse_grouped_{timestamp}.pdf",
-            "metric": "auc_roc",
-            "title": "Bioresponse (↑)",
-            "manual_df": pd.DataFrame({
-                "method": ["RF", "XGBoost", "LightGBM", "CatBoost"],
-                "method_display": ["RF", "XGBoost", "LightGBM", "CatBoost"],
-                "mean": [0.873, 0.873, 0.872, 0.872],
-                "std": [0.007, 0.008, 0.008, 0.009]
-            }),
-            "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
-        },
-        {
-            "data_paths":  [
-                "./results_hiva/*.csv",
-                "./results_hiva_150/*.csv",
-                "./results_hiva_old/*.csv"
-            ],
-            "fig_path": f"hiva_grouped_{timestamp}.pdf",
+            "fig_path": f"hiva_comparison_{timestamp}.png",
             "metric": "log_loss",
             "title": "hiva_agnostic(↓)",
-            "manual_df": pd.DataFrame({
-                "method": ["LightGBM", "EBM"],
-                "method_display": ["LightGBM", "EBM"],
-                "mean": [0.175, 0.174],
-                "std": [0.001, 0.001]
-            }),
-            "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
-        }
+            "manual_df": pd.DataFrame(),
+            "setting_labels": ["original impl(500)", "tabarena impl(500)"]
+        },
+        # {
+        #     "data_paths": [
+        #        "./results_qsar/*.csv",
+        #       "./results_qsar_150/*.csv",
+        #       "./results_qsar_old/*.csv"
+        #   ],
+        #     "fig_path": f"QSAR_grouped_{timestamp}.pngws",
+        #     "metric": "rmse",
+        #     "title": "QSAR-TID-11(↓)",
+        #     "manual_df": pd.DataFrame({
+        #         "method": ["RealMLP", "TabM", "MNCA"],
+        #         "method_display": ["RealMLP", "TabM", "MNCA"],
+        #         "mean": [0.763, 0.761, 0.770],
+        #         "std": [0.047, 0.050, 0.044]
+        #     }),
+        #     "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
+        # },
+        # {
+        #     "data_paths": [
+        #         "./results_bioresponse/*.csv",
+        #         "./results_bioresponse_150/*.csv",
+        #         "./results_bioresponse_old/*.csv"
+        #     ],
+        #     "fig_path": f"bioresponse_grouped_{timestamp}.png",
+        #     "metric": "auc_roc",
+        #     "title": "Bioresponse (↑)",
+        #     "manual_df": pd.DataFrame({
+        #         "method": ["RF", "XGBoost", "LightGBM", "CatBoost"],
+        #         "method_display": ["RF", "XGBoost", "LightGBM", "CatBoost"],
+        #         "mean": [0.873, 0.873, 0.872, 0.872],
+        #         "std": [0.007, 0.008, 0.008, 0.009]
+        #     }),
+        #     "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
+        # },
+        # {
+        #     "data_paths":  [
+        #         "./results_hiva/*.csv",
+        #         "./results_hiva_150/*.csv",
+        #         "./results_hiva_old/*.csv"
+        #     ],
+        #     "fig_path": f"hiva_grouped_{timestamp}.png",
+        #     "metric": "log_loss",
+        #     "title": "hiva_agnostic(↓)",
+        #     "manual_df": pd.DataFrame({
+        #         "method": ["LightGBM", "EBM"],
+        #         "method_display": ["LightGBM", "EBM"],
+        #         "mean": [0.175, 0.174],
+        #         "std": [0.001, 0.001]
+        #     }),
+        #     "setting_labels": ["sklearn new (500)", "sklearn new (150)", "sklearn old (500)"]
+        # }
     ]
 
     for dataset in datasets:
