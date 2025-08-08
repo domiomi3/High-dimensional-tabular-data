@@ -9,7 +9,7 @@ from matplotlib.ticker import FixedLocator, FormatStrFormatter
 from datetime import datetime
 
 sys.path.append(".")
-from utils import *
+from utils.utils import *
 
 
 def plot_results(data_paths, fig_dir, fig_path, metric, manual_df, title, method_name_map, setting_labels):
@@ -166,7 +166,6 @@ if __name__ == "__main__":
         "random_dr": "TabPFN+randproj",
         "agglo_dr": "TabPFN+agglo",
         "kbest_fs": "TabPFN+kbest",
-        "ica_dr": "TabPFN+ica",
         "kpca_dr": "TabPFN+kpca"
     }
    

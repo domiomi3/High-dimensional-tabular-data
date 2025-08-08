@@ -1,22 +1,33 @@
-# Toy example
+# Learning representations og high dimensional tabular data
 
-This code performs [feature selection](https://scikit-learn.org/stable/modules/feature_selection.html) and [dimensionality reduction](https://scikit-learn.org/stable/modules/unsupervised_reduction.html) with most of the sklearn methods on the [QSAR-TID-11](https://www.openml.org/search?type=data&status=active&id=46953) dataset and then runs TabPFN on the resulting data for the binary classification task. 
+This code performs [feature selection](https://scikit-learn.org/stable/modules/feature_selection.html) and [dimensionality reduction](https://scikit-learn.org/stable/modules/unsupervised_reduction.html) with most of the available sklearn methods on the (high dimensional) OpenML datasets and runs tabular models from TabArena (TabPFNv2, CatBoost etc.) with the resulting data representations for the dataset-specified task. 
 
-The original dataset consists of 5,742 samples and 1,024 features + a target variable.
 
 Install conda and create environment:
 ```
 conda env create -f env.yaml
 ```
 
-To run sklearn methods and TabPFN (or pass any subset of the methods): 
+Create slurm script for the desired OpenML task/dataset, TabArena model, and sklearn method and submit the job:
 ```
-sklearn run_baselines.py --method all --dataset <openml-dataset/task-id>
+python experiments/generate_slurm_script.py \
+--openml_id task-id/dataset-name \
+--model model-name
+--methods all/method-name/method-list  \
+--exp_group exp-name \
 ```
-or
+
+or run the training script directly:
 ```
-bash run_baselines_meta.sh --dataset <openml-dataset/task-id>
+python src/train.py \
+--openml_id task-id \
+--model model-name
+--methods all/method-name/method-list \
+--exp_group exp-name \
 ```
+
+**exp-name** is directory created under experiments/results/ 
+
 Task IDs:
 ```
 QSAR-TID-11: 363697 (default)
@@ -24,4 +35,4 @@ Bioresponse: 363620
 hiva: 363677 
 ```
 
-The results are saved to .csv files in the results/ directory.
+The results are saved to .csv file along with config.yaml under the experiments/results/dataset-name/model-name/method-name directory.

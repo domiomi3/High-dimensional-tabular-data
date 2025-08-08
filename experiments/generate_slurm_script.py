@@ -12,7 +12,7 @@ from typing import List, Tuple
 # ---------------------------------------------------------------------------
 DEF_WORK_DIR  = "/work/dlclarge2/matusd-toy_example"
 DEF_PARTITION = "mlhiwidlc_gpu-rtx2080"
-DEF_TIME      = "1:15:00"
+DEF_TIME      = "2:00:00"
 DEF_CONDA     = "$HOME/.conda"
 
 # ---------------------------------------------------------------------------
@@ -21,14 +21,14 @@ DEF_CONDA     = "$HOME/.conda"
 UTILS_DIR = "/work/dlclarge2/matusd-toy_example/src"
 sys.path.append(UTILS_DIR)
 try:
-    from utils import load_dataset                                   # noqa: E402
+    from utils.openml_data import load_dataset                                   # noqa: E402
 except Exception as e:
     sys.exit(f"❌ Could not import load_dataset from {UTILS_DIR}: {e}")
 
 # ---------------------------------------------------------------------------
 ALLOWED_METHODS = (
     "original random_fs variance_fs tree_fs kbest_fs "
-    "pca_dr random_dr kpca_dr agglo_dr ica_dr"
+    "pca_dr random_dr kpca_dr agglo_dr"
 ).split()
 
 # ---------------------------------------------------------------------------
@@ -40,8 +40,8 @@ SLURM_TEMPLATE = """#!/bin/bash
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16gb
 #SBATCH --export=ALL
-#SBATCH --output={log_dir}/{script_base}.%N.%A.%a.out
-#SBATCH --error={log_dir}/{script_base}.%N.%A.%a.err
+#SBATCH --output=/dev/null
+#SBATCH --error=/dev/null
 {mail_line}{array_line}
 
 OPENML_ID={openml_id}
@@ -51,12 +51,18 @@ WORKING_DIR={working_dir}
 CONDA_BASE={conda_base}
 ENV_NAME=tabpfn
 PYTHON_BIN="$CONDA_BASE/envs/$ENV_NAME/bin/python"
-PYTHON_SCRIPT="$WORKING_DIR/src/train_sklearn.py"
+PYTHON_SCRIPT="$WORKING_DIR/src/train.py"
 
 source "$CONDA_BASE"/bin/activate "$ENV_NAME"
 
 methods=({methods_array})
 METHOD=${{methods[$SLURM_ARRAY_TASK_ID]}}
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)         
+LOG_PREFIX="{script_base}_${{METHOD}}_${{TIMESTAMP}}"
+LOG_ID="${{SLURM_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
+
+exec >  "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.out" \
+     2> "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.err"
 
 echo "Running method ${{METHOD}} with ${{MODEL}} on OpenML task ${{OPENML_ID}}"
 
@@ -76,7 +82,7 @@ mkdir -p "$RESULTS_DIR"
 def parse_methods(arg: str) -> List[str]:
     if arg.lower() in {"all", "*"}:
         return ALLOWED_METHODS.copy()
-    lst = [m.strip() for m in arg.split(",") if m.strip()]
+    lst = [m.strip() for m in arg.split(" ") if m.strip()]
     bad = [m for m in lst if m not in ALLOWED_METHODS]
     if bad:
         raise ValueError(f"Unknown method(s): {', '.join(bad)}")
@@ -113,7 +119,7 @@ def main() -> None:
         description="Generate a single Slurm array script for TabPFN/OpenML runs.")
     ap.add_argument("--openml_id", type=int, required=True)
     ap.add_argument("--methods", required=True)
-    ap.add_argument("--exp_name", required=True)
+    ap.add_argument("--exp_group", required=True)
     ap.add_argument("--model", default="tabpfnv2_org")
     ap.add_argument("--test", action="store_true")
     ap.add_argument("--check_time", action="store_true")
@@ -125,6 +131,13 @@ def main() -> None:
     ap.add_argument("--mail_user")
     args = ap.parse_args()
 
+    is_tabpfn = args.model.lower().startswith("tabpfn")
+
+    if args.test:                                # dry-run jobs
+        time_str = "0:25:00"  if is_tabpfn else "1:15:00"
+    else:                                         # full runs
+        time_str = "2:00:00"  if is_tabpfn else "6:00:00"
+        
     methods = parse_methods(args.methods)
 
     try:
@@ -135,16 +148,17 @@ def main() -> None:
 
     # base directories -------------------------------------------------------
     base = Path(args.working_dir, "experiments")
-    logs_dir     = base / "slurm_logs"    / args.exp_name / dataset_name
-    scripts_dir  = base / "slurm_scripts" / args.exp_name / dataset_name
-    results_root = base / "results"       / args.exp_name / dataset_name
+    logs_dir     = base / "slurm_logs"    / args.exp_group / dataset_name / args.model
+    scripts_dir  = base / "slurm_scripts" / args.exp_group / dataset_name / args.model
+    results_root = base / "results"       / args.exp_group / dataset_name / args.model
+
     for d in (logs_dir, scripts_dir, results_root):
         d.mkdir(parents=True, exist_ok=True)
 
     abbr  = make_abbr(methods)
     extra = "_test" if args.test else ""
-    script_base = f"{dataset_name}_{abbr}_{args.model}{extra}"
-    script_path = scripts_dir / f"{script_base}.sh"
+    script_base = f"{dataset_name}_{args.model}{extra}"
+    script_path = scripts_dir / f"{script_base}_{abbr}.sh"
 
     # flags & header helpers --------------------------------------------------
     array_line     = "#SBATCH --array=0" if len(methods) == 1 \
@@ -156,8 +170,8 @@ def main() -> None:
 
     slurm_text = SLURM_TEMPLATE.format(
         partition       = args.partition,
-        time            = args.time,
-        job_name        = f"{args.exp_name}_{dataset_name}",
+        time            = time_str,
+        job_name        = f"{args.model}_{dataset_name}",
         log_dir         = logs_dir,
         script_base     = script_base,
         mail_line       = mail_line,
