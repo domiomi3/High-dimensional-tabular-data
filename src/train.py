@@ -180,7 +180,7 @@ def main(config):
 if __name__ == "__main__":
     ALL_METHODS = [
         "original", "random_fs", "variance_fs", "tree_fs", "kbest_fs",
-        "pca_dr", "random_dr", "agglo_dr", "kpca_dr",
+        "pca_dr", "random_dr", "agglo_dr", "kpca_dr", "kbest+pca",
     ]
 
     TABARENA_MODELS = {"tabpfnv2_tab": "TabPFNv2", "catboost_tab": "CatBoost", "realmlp_tab": "RealMLP"}
@@ -199,6 +199,7 @@ if __name__ == "__main__":
     parser.add_argument("--check_time", action="store_true")
     parser.add_argument("--random_state", type=int, default=44)
     parser.add_argument("--n_features", type=int, default=500)
+    parser.add_argument("--kbest_features", type=int, default=100)
     parser.add_argument("--var_threshold", type=float, default=0.95)
     parser.add_argument("--n_tree_estimators", type=int, default=15)
     parser.add_argument("--log_level", default="INFO",

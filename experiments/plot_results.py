@@ -30,7 +30,7 @@ EDGE = "#333333"
 TITLE_MAP = {
     "qsar_tid_11": "QSAR-TID-11",
     "bioresponse": "Bioresponse",
-    "hiva_agnostic": "HIVA (Agnostic)",
+    "hiva_agnostic": "hiva",
 }
 
 # ------------------------------------------------------------------------ #

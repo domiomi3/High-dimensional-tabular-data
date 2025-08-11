@@ -17,7 +17,7 @@ _METHOD_FULLNAME = {
     "random_fs":    "Random selection",
     "variance_fs":  "Variance threshold",
     "tree_fs":      "Tree-based estimators",
-    "kbest_fs":     "Select K best",
+    "kbest_fs":     "K best selection",
     "pca_dr":       "PCA",
     "random_dr":    "Gaussian random projection",
     "agglo_dr":     "Feature agglomeration",
@@ -34,8 +34,16 @@ def log_metadata(config: Dict[str, Any]) -> None:
         logger.info("Using original dataset.")
         return
 
-    cat = ("Feature Selection" if method.endswith("_fs")
-           else "Dimensionality Reduction")
+    if method == "kbest+pca":
+        kbest_feat = config["kbest_features"]
+        pca_comps = int(config["n_features"]) - int(kbest_feat)
+        logger.info("Category: Feature selection + Dimensionality reduction")
+        logger.info("Method: K best selection + PCA")
+        logger.info(f"HPs: Top-k features: {kbest_feat}, PCA components: {pca_comps}")
+        return
+    
+    cat = ("Feature selection" if method.endswith("_fs")
+           else "Dimensionality reduction")
     logger.info("Category: %s", cat)
     logger.info("Method: %s", display_method)
 

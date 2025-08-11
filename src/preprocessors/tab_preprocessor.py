@@ -19,10 +19,11 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
         self._estimator = None # sklearn method
 
     def fit(self, X: pd.DataFrame, y=None):
-        X = pd.DataFrame(X)        
+        X = pd.DataFrame(X)
+        y = None if y is None else pd.Series(y)       
 
-        method  = self.method
-        config  = self.config              
+        method = self.method
+        config = self.config              
 
         if method == "original":
             self._estimator = None              
@@ -54,6 +55,23 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
             self._estimator = FeatureAgglomeration(n_clusters=config["n_features"]).fit(X)
         elif method == "kpca_dr":
             self._estimator = KernelPCA(n_components=config["n_features"], kernel="rbf", random_state=self.rand_state).fit(X)
+        elif method == "kbest+pca":
+            # 1 k best
+            stat = f_regression if config["task_type"] == "regression" else f_classif
+            self._selector = SelectKBest(stat, k=config["kbest_features"]).fit(X, y)
+            self._kbest_mask = self._selector.get_support() # selected columns
+            # 2 PCA 
+            remaining_cols = X.columns[~self._kbest_mask]
+            self._pca_cols = remaining_cols                     
+
+            if len(remaining_cols) == 0: # if all cols are selected
+                self._pca = None
+            else:
+                pca_comps = int(config["n_features"]) - int(config["kbest_features"])
+                self._pca = PCA(
+                    n_components=pca_comps,
+                    random_state=self.rand_state,
+                ).fit(X[remaining_cols])
         else:
             raise ValueError(f"Unknown method {method}")
             
@@ -67,7 +85,19 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
         if method == "original":
             return X
         elif method == "random_fs":
-            return X[self._estimator]      # _estimator is just a list of cols
+            return X[self._estimator] # _estimator is just a list of cols
+        elif method == "kbest+pca":
+            kbest_arr = self._selector.transform(X)
+            kbest_cols = X.columns[self._kbest_mask]
+            kbest_df = pd.DataFrame(kbest_arr, columns=kbest_cols, index=X.index)
+
+            if self._pca is not None:
+                pca_arr = self._pca.transform(X[self._pca_cols])
+                pca_cols = [f"PCA_{i}" for i in range(pca_arr.shape[1])]
+                pca_df = pd.DataFrame(pca_arr, columns=pca_cols, index=X.index)
+                return pd.concat([kbest_df, pca_df], axis=1)
+            else:
+                return kbest_df # if all cols selected
         else:
             return pd.DataFrame(self._estimator.transform(X))
 
