@@ -58,6 +58,7 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
         elif method == "kbest+pca":
             # 1 k best
             stat = f_regression if config["task_type"] == "regression" else f_classif
+
             self._selector = SelectKBest(stat, k=config["kbest_features"]).fit(X, y)
             self._kbest_mask = self._selector.get_support() # selected columns
             # 2 PCA 
@@ -67,9 +68,8 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
             if len(remaining_cols) == 0: # if all cols are selected
                 self._pca = None
             else:
-                pca_comps = int(config["n_features"]) - int(config["kbest_features"])
                 self._pca = PCA(
-                    n_components=pca_comps,
+                    n_components=config["pca_comps"],
                     random_state=self.rand_state,
                 ).fit(X[remaining_cols])
         else:

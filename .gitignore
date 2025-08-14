@@ -188,5 +188,5 @@ experiments/slurm_scripts/
 experiments/time_summary/
 COMMANDS.md
 pivot_times.csv
-
+AutogluonModels/
 

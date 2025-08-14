@@ -57,7 +57,6 @@ def train(X, y, task, config) -> List[dict]:
                         repeat=rep, fold=fold, sample=samp)
                     X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
                     X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
-                    
 
                     # preprocess data
                     X_train, X_test, y_train, y_test = run_preprocessing_pipeline(
@@ -102,11 +101,15 @@ def train(X, y, task, config) -> List[dict]:
                     # add norm_rmse
                     extra = {}
                     if task_type == "regression" and "norm_rmse" in eval_metric:
-                        extra["norm_rmse"] = score / np.std(y_test)
+                        extra["norm_rmse"] = round(score / np.std(y_test), 4)
                     if check_time:
                         fold_time = time.time() - t0
                         fold_times.append(fold_time)
                         extra["fold_time"]=round(fold_time, 4)
+                    if model.val_score is not None:
+                        val_score = round(model.val_score,4)
+
+                        extra[f"val_{eval_metric[0]}"] = val_score
 
                     # save per-sample (fold) results
                     results.append({
@@ -119,11 +122,13 @@ def train(X, y, task, config) -> List[dict]:
                         eval_metric[0]: round(score,4),
                         **extra,
                     })
-                    logger.info(
-                        "repeat %d | fold %d | sample %d | %s: %.4f%s",
-                        rep, fold, samp, eval_metric[0], score,
-                        f" | normRMSE: {extra['norm_rmse']:.4f}" if 'norm_rmse' in extra else ""
-                    )
+                    log_parts = [f"repeat {rep} | fold {fold} | sample {samp}",
+                            f"{eval_metric[0]}: {score:.4f}"]
+                    if f"val_{eval_metric[0]}" in extra:
+                        log_parts.append(f"val_{eval_metric[0]}: {extra[f'val_{eval_metric[0]}']:.4f}")
+                    if 'norm_rmse' in extra:
+                        log_parts.append(f"normRMSE: {extra['norm_rmse']:.4f}")
+                    logger.info(" | ".join(log_parts))
 
                 except Exception as e:
                     logger.error("Failure r%02d f%02d s%02d m%-10s",
@@ -159,6 +164,8 @@ def main(config):
     for method in config["method"]:
         m_config = config.copy()
         m_config["method"] = method
+        m_config["kbest_features"] = round(m_config["fs_ratio"]*m_config["n_features"])
+        m_config["pca_comps"] = m_config["n_features"]-m_config["kbest_features"]
         m_config["time_start"] = datetime.now().strftime("%Y%m%d_%H%M%S")
         results, fold_times = train(X, y, task, m_config)
         m_config["time_finish"] = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -198,8 +205,8 @@ if __name__ == "__main__":
     parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--check_time", action="store_true")
     parser.add_argument("--random_state", type=int, default=44)
-    parser.add_argument("--n_features", type=int, default=500)
-    parser.add_argument("--kbest_features", type=int, default=100)
+    parser.add_argument("--n_features", type=int, default=150)
+    parser.add_argument("--fs_ratio", type=float, default=0.75)
     parser.add_argument("--var_threshold", type=float, default=0.95)
     parser.add_argument("--n_tree_estimators", type=int, default=15)
     parser.add_argument("--log_level", default="INFO",

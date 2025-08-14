@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
-Generate a Slurm array script for TabPFN/OpenML experiments.
+Generate a Slurm array script for TabPFN/OpenML experiments (micromamba only).
 
-✔ Adds short, collision-free abbreviations to script names, incl. “kbest+pca”.
+- Uses micromamba exclusively (no conda).
+- Activates env via `micromamba run` (no shell hook needed).
+- Keeps your abbreviations, method parsing, and directory layout.
 """
 
 import argparse
@@ -16,10 +18,11 @@ from typing import List
 # ---------------------------------------------------------------------------
 # Cluster defaults
 # ---------------------------------------------------------------------------
-DEF_WORK_DIR  = "/work/dlclarge2/matusd-toy_example"
-DEF_PARTITION = "mlhiwidlc_gpu-rtx2080"
-DEF_TIME      = "2:00:00"
-DEF_CONDA     = "$HOME/.conda"
+DEF_WORK_DIR   = "/work/dlclarge2/matusd-toy_example"
+DEF_PARTITION  = "mlhiwidlc_gpu-rtx2080"
+DEF_TIME       = "2:00:00"
+DEF_MAMBA_ROOT = "$HOME/micromamba"
+DEF_MAMBA_EXE  = "$HOME/bin/micromamba"
 
 # ---------------------------------------------------------------------------
 # utils.load_dataset helper
@@ -68,12 +71,10 @@ OPENML_ID={openml_id}
 MODEL={model}
 
 WORKING_DIR={working_dir}
-CONDA_BASE={conda_base}
-ENV_NAME=tabpfn
-PYTHON_BIN="$CONDA_BASE/envs/$ENV_NAME/bin/python"
+MAMBA_ROOT_PREFIX={mamba_root}
+MAMBA_EXE={mamba_exe}
+ENV_NAME=high_tab
 PYTHON_SCRIPT="$WORKING_DIR/src/train.py"
-
-source "$CONDA_BASE"/bin/activate "$ENV_NAME"
 
 methods=({methods_array})
 METHOD=${{methods[$SLURM_ARRAY_TASK_ID]}}
@@ -81,6 +82,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="{script_base}_${{METHOD}}_${{TIMESTAMP}}"
 LOG_ID="${{SLURM_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
 
+# Ensure log/result dirs exist and redirect logs
 exec >  "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.out" \
      2> "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.err"
 
@@ -91,7 +93,14 @@ cd "$WORKING_DIR"
 RESULTS_DIR="{results_root}/${{METHOD}}"
 mkdir -p "$RESULTS_DIR"
 
-"$PYTHON_BIN" "$PYTHON_SCRIPT" \\
+# Sanity-check micromamba binary
+if [[ ! -x "$MAMBA_EXE" ]]; then
+  echo "❌ micromamba not found or not executable at $MAMBA_EXE" >&2
+  exit 1
+fi
+
+# Run without activating a login shell; use the env path directly
+"$MAMBA_EXE" run -p "$MAMBA_ROOT_PREFIX/envs/$ENV_NAME" python "$PYTHON_SCRIPT" \\
     --method "$METHOD" \\
     --openml_id "$OPENML_ID"{dry_run_flag}{check_time_flag} \\
     --model "$MODEL" \\
@@ -154,7 +163,7 @@ def safe_load_dataset(oid: int) -> str:
 # ---------------------------------------------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Generate a single Slurm array script for TabPFN/OpenML runs.")
+        description="Generate a single Slurm array script for TabPFN/OpenML runs (micromamba only).")
     ap.add_argument("--openml_id", type=int, required=True)
     ap.add_argument("--methods",   required=True)
     ap.add_argument("--exp_group", required=True)
@@ -163,17 +172,21 @@ def main() -> None:
     ap.add_argument("--check_time", action="store_true")
     # cluster knobs
     ap.add_argument("--working_dir", default=DEF_WORK_DIR)
-    ap.add_argument("--conda_base",  default=DEF_CONDA)
     ap.add_argument("--partition",   default=DEF_PARTITION)
     ap.add_argument("--time",        default=DEF_TIME)
     ap.add_argument("--mail_user")
+    # micromamba knobs
+    ap.add_argument("--mamba_root", default=DEF_MAMBA_ROOT,
+                    help="Micromamba root prefix (contains envs/)")
+    ap.add_argument("--mamba_exe",  default=DEF_MAMBA_EXE,
+                    help="Path to micromamba executable")
     args = ap.parse_args()
 
     is_tabpfn = args.model.lower().startswith("tabpfn")
 
     # wall-time presets
     time_str = ("0:25:00" if is_tabpfn else "1:15:00") if args.test \
-               else ("2:00:00" if is_tabpfn else "6:00:00")
+               else ("2:00:00" if is_tabpfn else "10:00:00")
 
     methods = parse_methods(args.methods)
 
@@ -201,7 +214,7 @@ def main() -> None:
                  else f"#SBATCH --array=0-{len(methods)-1}"
     dry_run_flag    = " \\\n    --dry_run"    if args.test       else ""
     check_time_flag = " \\\n    --check_time" if args.check_time else ""
-    mail_line = (f"#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user={args.mail_user}"
+    mail_line = (f"#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user={args.mail_user}\n"
                  if args.mail_user else "")
 
     slurm_text = SLURM_TEMPLATE.format(
@@ -213,13 +226,14 @@ def main() -> None:
         mail_line       = mail_line,
         array_line      = array_line,
         working_dir     = args.working_dir,
-        conda_base      = args.conda_base,
         methods_array   = " ".join(methods),
         results_root    = results_root,
         model           = args.model,
         dry_run_flag    = dry_run_flag,
         check_time_flag = check_time_flag,
         openml_id       = args.openml_id,
+        mamba_root      = args.mamba_root,
+        mamba_exe       = args.mamba_exe,
     )
 
     with script_path.open("w") as f:

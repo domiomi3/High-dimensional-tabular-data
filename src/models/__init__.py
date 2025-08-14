@@ -8,7 +8,7 @@ _TABARENA_NAME_MAP: dict[str, str] = {
     "catboost_tab":  "CatBoost",
     "xgboost_tab":   "XGBoost",
     "modernnca_tab": "ModernNCA",
-    "tabpfnv2_tab": "TabPFNv2",
+    "tabpfnv2_tab":  "TabPFNv2",
     "tabicl_tab":    "TabICL",
     "torchmlp_tab":  "TorchMLP",
     "tabdpt_tab":    "TabDPT",

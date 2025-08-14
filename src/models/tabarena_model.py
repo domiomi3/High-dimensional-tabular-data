@@ -1,8 +1,12 @@
+from tabrepo.models.utils import get_configs_generator_from_name
+from autogluon.core.models import BaggedEnsembleModel
+from autogluon.core.metrics import get_metric
+
 from models.base import TabModel
 from utils.hardware import count_gpus
 
 
-class TabArenaModel(TabModel):
+class TabArenaModel(TabModel): # TODO: add ensemble bagging, CPU training
     """Select a model to run, which we automatically load in the code below.
 
     Note: not all models are available for all task types.
@@ -49,24 +53,32 @@ class TabArenaModel(TabModel):
 
         self.model_name = model_name
         self.kwargs = kwargs
+        self.cross_validation_bagging = True
      
     def fit(self, X, y):
-        from tabrepo.models.utils import \
-        get_configs_generator_from_name
-
         meta = get_configs_generator_from_name(self.model_name)
         model_cls = meta.model_cls
-        metric = ("root_mean_squared_error"
-                    if "rmse" in self.eval_metric else self.eval_metric[0])
+        model_config = meta.manual_configs[0]
+        metric = "root_mean_squared_error" if isinstance(self.eval_metric[0], str) and self.eval_metric[0].lower() in {"rmse", "root_mean_squared_error"} else self.eval_metric[0]
         num_gpus = count_gpus() if self.device == "cuda" else 0
         num_cpus = 1
-        self.model = model_cls(
-            problem_type=self.task_type,
-            eval_metric=metric,
-            name=self.model_name,
-            path="models", #TODO??
-            **self.kwargs,
-        ).fit(X=X, y=y, num_gpus=num_gpus, num_cpus=num_cpus)
+        if self.cross_validation_bagging and self.model_name != "TabPFNv2": # add logging for bagging 
+            #TODO: there's data leakage so even oof scores might be optimistic 
+            self.model = BaggedEnsembleModel(model_cls(problem_type=self.task_type, eval_metric=metric, name=self.model_name, **model_config))
+            self.model.params["fold_fitting_strategy"] = "sequential_local"
+            self.model.fit(X=X, y=y, k_fold=8)
+            score = self.model.score_with_oof(y=y)
+            self.val_score = -score if metric == "root_mean_squared_error" else score # AG always maximizes
+        else:
+            self.model = model_cls(
+                problem_type=self.task_type,
+                eval_metric=metric,
+                name=self.model_name,
+                path="models", #TODO??
+                **self.kwargs,
+            )
+            self.model.fit(X=X, y=y, num_gpus=num_gpus, num_cpus=num_cpus)
+            self.val_score = None
         return self
 
     def predict(self, X):

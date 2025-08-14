@@ -1,4 +1,3 @@
-import pandas as pd
 import logging
 
 from typing import Any, Dict
@@ -36,10 +35,10 @@ def log_metadata(config: Dict[str, Any]) -> None:
 
     if method == "kbest+pca":
         kbest_feat = config["kbest_features"]
-        pca_comps = int(config["n_features"]) - int(kbest_feat)
+        pca_comps = config["pca_comps"]
         logger.info("Category: Feature selection + Dimensionality reduction")
         logger.info("Method: K best selection + PCA")
-        logger.info(f"HPs: Top-k features: {kbest_feat}, PCA components: {pca_comps}")
+        logger.info(f"HPs: Top-k features(75%): {kbest_feat}, PCA components(25%): {pca_comps}")
         return
     
     cat = ("Feature selection" if method.endswith("_fs")
@@ -70,7 +69,6 @@ def log_metadata(config: Dict[str, Any]) -> None:
 def run_preprocessing_pipeline(
     X_train, X_test, y_train, y_test, random_state, config, metadata_flag
 ):
-
     # pass only these
     feature_generator, label_cleaner, tab_preprocessor = (
         AutoMLPipelineFeatureGenerator(),
