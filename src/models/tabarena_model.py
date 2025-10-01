@@ -79,6 +79,7 @@ class TabArenaModel(TabModel):
                 problem_type=self.task_type,
                 eval_metric=self.eval_metric,
                 name=self.model_name,
+                path=self.model_checkpoints_dir,
                 **base_config
             )
             self.model = BaggedEnsembleModel(
@@ -90,7 +91,6 @@ class TabArenaModel(TabModel):
             self.model.params.update({
                 "fold_fitting_strategy": "sequential_local", 
             })
-            # breakpoint()
             self.model = self.model.fit(X=X, y=y, k_fold=8) # already stores the oof preds
 
             score = self.model.score_with_oof(y=y)
