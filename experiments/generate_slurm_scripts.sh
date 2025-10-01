@@ -1,124 +1,187 @@
 #!/usr/bin/env bash
-# --------------------------------------------------------------------------
-# generate_slurm_scripts.sh
+# Create Slurm scripts for every combination of {models} x {datasets} with a methods set.
+# Positionals (in this order):
+#   1) MODELS   – space-separated list in quotes OR 'all'
+#   2) DATASETS – space-separated list in quotes OR 'all'
+#                 (tokens can be aliases: bioresponse|hiva|qsar OR numeric OpenML IDs)
+#   3) METHODS  – space-separated list in quotes OR 'all'
 #
-# Usage examples
-#   ./generate_slurm_scripts.sh --group final         # ALL datasets/models/methods for "final" experiment
-#   ./generate_slurm_scripts.sh hiva --group final    # HIVA, all models/methods for "final" experiment
-#   ./generate_slurm_scripts.sh hiva tabpfnv2_org     # one dataset, one model for "default" experiment
-#   ./generate_slurm_scripts.sh hiva tabpfnv2_org "kbest_fs random_fs" # one dataset, one model, 
-#   ./generate_slurm_scripts.sh --test --check-time --group debug  # dry-run variants for every job with time check for "debug" experiment
+# Any args after a literal `--` are forwarded verbatim to the Python generator,
+# which will in turn forward unknown flags to train.py (e.g. --num_features 123).
 #
-# Positional args
-#   1) DATASET   – bioresponse | hiva | qsar | all
-#   2) MODEL(S)  – space-separated list OR all
-#   3) METHOD(S) – space-separated list OR all
-# Optional flags
-#   -t | --test        – pass --test to generate_slurm_script.py (dry-run)
-#   -g | --group       – choose experiment-group directory (default)
-#   -c | --check-time  – add --check_time to generate_slurm_script.py
-# --------------------------------------------------------------------------
+# Examples:
+#   ./generate_slurm_scripts.sh "tabpfnv2_tab catboost_tab" all "kbest_fs random_fs" -- --num_features 123 --seed 324
+#   ./generate_slurm_scripts.sh all all all -g final -c -- --fs_ratio 0.6
+#   ./generate_slurm_scripts.sh "tabpfnv2_tab" "hiva 363697" all -t -g debug -r 20241229_143000 -- --log_level DEBUG
+#
 set -euo pipefail
 
-# ── 0. flag parsing --------------------------------------------------------
-TEST_MODE=false
-CHECK_TIME=false
-EXP_GROUP=default
-POSITIONALS=()                     # will hold dataset / model / methods
+# ---------- defaults / config ----------
+PYGEN="experiments/generate_slurm_script.py"
 
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -t|--test)
-            TEST_MODE=true
-            shift ;;
-        -g|--group)
-            [[ ${2:-} ]] || { echo "❌ --group needs a value" >&2; exit 1; }
-            EXP_GROUP=$2
-            shift 2 ;;
-        -c|--check-time)
-            CHECK_TIME=true
-            shift ;;
-        --)                         # explicit end-of-options
-            shift; break ;;
-        -*)
-            echo "❌ Unknown option: $1" >&2
-            exit 1 ;;
-        *)                          # positional: push to array and continue
-            POSITIONALS+=("$1")
-            shift ;;
-    esac
-done
-
-# restore the (up to) three positionals so the rest of the script is unchanged
-set -- "${POSITIONALS[@]}"
-
-# ── 1. lookup table: dataset → OpenML task id --------------------------------
+# dataset alias -> OpenML task id
 declare -A DATASET_IDS=(
-    [bioresponse]=363620
-    [hiva]=363677
-    [qsar]=363697
+  [bioresponse]=363620
+  [hiva]=363677
+  [qsar]=363697
 )
 
-# ── 2. full lists ------------------------------------------------------------
-ALL_DATASETS=(bioresponse hiva qsar)
-ALL_MODELS=(catboost_tab tabpfnv2_org tabpfnv2_tab)
-ALL_METHODS="all"          # literal string passed through
+# canonical "all"
+ALL_MODELS=("tabpfnv2_tab" "catboost_tab")
+ALL_DATASETS=("bioresponse" "hiva" "qsar")
 
-# ── 3. positional arguments --------------------------------------------------
-DATASET_ARG=${1:-all}
-MODELS_ARG=${2:-all}
-METHODS_ARG=${3:-all}
+# flags for the generator (these are *recognized* by your Python script)
+DRY_RUN=false
+SAVE_TIME=false
+EXP_GROUP="default"
+RUN_ID=""
+PARTITION=""
+TIME_LIMIT=""
+MAIL_USER=""
+WORK_DIR=""
+VENV_DIR=""
+PYTHON_EXE=""
 
-# allow a legacy 4th positional "test"
-[[ ${4:-} == test ]] && TEST_MODE=true
+# ---------- parse options before the `--` separator ----------
+POSITIONALS=()
+FORWARD_ARGS=()
+SEEN_DASHDASH=false
 
-# datasets list
-if [[ $DATASET_ARG == "all" ]]; then
-    DATASETS=("${ALL_DATASETS[@]}")
-else
-    DATASETS=($DATASET_ARG)
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "--" ]]; then
+    SEEN_DASHDASH=true
+    shift
+    break
+  fi
+  case "$1" in
+    -t|--dry_run) DRY_RUN=true; shift ;;
+    -c|--save_time) SAVE_TIME=true; shift ;;
+    -g|--group) EXP_GROUP="${2:-}"; shift 2 ;;
+    -r|--run_id) RUN_ID="${2:-}"; shift 2 ;;
+    -p|--partition) PARTITION="${2:-}"; shift 2 ;;
+    --time) TIME_LIMIT="${2:-}"; shift 2 ;;
+    --mail_user) MAIL_USER="${2:-}"; shift 2 ;;
+    --working_dir) WORK_DIR="${2:-}"; shift 2 ;;
+    --venv_dir) VENV_DIR="${2:-}"; shift 2 ;;
+    --python_exe) PYTHON_EXE="${2:-}"; shift 2 ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage:
+  generate_all.sh "<models|all>" "<datasets|all>" "<methods|all>" [options] -- [forwarded args]
+
+Options (handled here, passed to the generator accordingly):
+  -t, --dry_run             Use --dry_run in Python script (short wallclock)
+  -c, --save_time           Use --save_time in Python script
+  -g, --group NAME          Experiment group (default: default)
+  -r, --run_id ID           Custom run ID (default: auto-generated timestamp)
+  -p, --partition NAME      Slurm partition (overrides generator default)
+      --time HH:MM:SS       Slurm time limit (overrides generator computed value)
+      --mail_user EMAIL     Slurm mail user
+      --working_dir PATH    Override working_dir for generator
+      --venv_dir PATH       Override venv_dir for generator
+      --python_exe PATH     Override python_exe for generator
+
+Anything after `--` is forwarded verbatim to the Python generator, which
+forwards unknown args to train.py (e.g. --num_features 123 --random_state 324).
+
+The run_id is particularly useful for coordinating multiple related experiments:
+  # All these will use the same run_id, grouping results together:
+  ./generate_slurm_scripts.sh "tabpfn" all "original" -r experiment_v1 
+  ./generate_slurm_scripts.sh "catboost" all "original" -r experiment_v1
+USAGE
+      exit 0 ;;
+    -*)
+      echo "❌ Unknown option: $1" >&2
+      exit 1 ;;
+    *)
+      POSITIONALS+=("$1"); shift ;;
+  esac
+done
+
+# collect everything after `--` for forwarding
+if [[ "$SEEN_DASHDASH" == true ]]; then
+  while [[ $# -gt 0 ]]; do FORWARD_ARGS+=("$1"); shift; done
 fi
 
-# models list
-if [[ $MODELS_ARG == "all" ]]; then
-    MODELS=("${ALL_MODELS[@]}")
+# ---------- check positionals ----------
+MODELS_ARG="${POSITIONALS[0]:-all}"
+DATASETS_ARG="${POSITIONALS[1]:-all}"
+METHODS_ARG="${POSITIONALS[2]:-all}"
+
+# expand MODELS
+if [[ "$MODELS_ARG" == "all" ]]; then
+  MODELS=("${ALL_MODELS[@]}")
 else
-    MODELS=($MODELS_ARG)
+  # split on spaces
+  read -r -a MODELS <<<"$MODELS_ARG"
 fi
 
-METHODS=$METHODS_ARG   # keep single string (could be "all" or list)
+# expand DATASETS
+declare -a DATASETS_TOKENS
+if [[ "$DATASETS_ARG" == "all" ]]; then
+  DATASETS_TOKENS=("${ALL_DATASETS[@]}")
+else
+  read -r -a DATASETS_TOKENS <<<"$DATASETS_ARG"
+fi
 
-# ── 4. sanity checks ---------------------------------------------------------
-for ds in "${DATASETS[@]}"; do
-    [[ -v "DATASET_IDS[$ds]" ]] || {
-        echo "❌ Unknown dataset '$ds'. Allowed: ${!DATASET_IDS[*]} or 'all'." >&2
-        exit 1
-    }
+# resolve datasets to OpenML IDs (numeric pass-through; aliases via map)
+declare -a DATASET_IDS_RESOLVED=()
+for tok in "${DATASETS_TOKENS[@]}"; do
+  if [[ "$tok" =~ ^[0-9]+$ ]]; then
+    DATASET_IDS_RESOLVED+=("$tok")
+  else
+    if [[ -v "DATASET_IDS[$tok]" ]]; then
+      DATASET_IDS_RESOLVED+=("${DATASET_IDS[$tok]}")
+    else
+      echo "❌ Unknown dataset alias '$tok'. Allowed: ${!DATASET_IDS[*]} or numeric ID or 'all'." >&2
+      exit 1
+    fi
+  fi
 done
 
-for mdl in "${MODELS[@]}"; do
-    case $mdl in
-        catboost_tab|tabpfnv2_org|tabpfnv2_tab) : ;;
-        *) echo "❌ Unknown model '$mdl'. Allowed: ${ALL_MODELS[*]} or 'all'." >&2; exit 1 ;;
-    esac
+# methods string is passed as-is (could be "all" or a quoted list)
+METHODS_STR="$METHODS_ARG"
+
+# sanity: at least one dataset id if not "all"
+if [[ "${#DATASET_IDS_RESOLVED[@]}" -eq 0 ]]; then
+  echo "❌ No datasets resolved. Check your DATASETS argument." >&2
+  exit 1
+fi
+if [[ "${#MODELS[@]}" -eq 0 ]]; then
+  echo "❌ No models given." >&2
+  exit 1
+fi
+
+# ---------- build common flags for the generator ----------
+COMMON_FLAGS=( "--methods" "$METHODS_STR" "--exp_group" "$EXP_GROUP" )
+[[ "$DRY_RUN" == true ]]   && COMMON_FLAGS+=( "--dry_run" )
+[[ "$SAVE_TIME" == true ]] && COMMON_FLAGS+=( "--save_time" )
+[[ -n "$RUN_ID" ]]         && COMMON_FLAGS+=( "--run_id" "$RUN_ID" )
+[[ -n "$PARTITION" ]]      && COMMON_FLAGS+=( "--partition" "$PARTITION" )
+[[ -n "$TIME_LIMIT" ]]     && COMMON_FLAGS+=( "--time" "$TIME_LIMIT" )
+[[ -n "$MAIL_USER" ]]      && COMMON_FLAGS+=( "--mail_user" "$MAIL_USER" )
+[[ -n "$WORK_DIR" ]]       && COMMON_FLAGS+=( "--working_dir" "$WORK_DIR" )
+[[ -n "$VENV_DIR" ]]       && COMMON_FLAGS+=( "--venv_dir" "$VENV_DIR" )
+[[ -n "$PYTHON_EXE" ]]     && COMMON_FLAGS+=( "--python_exe" "$PYTHON_EXE" )
+
+# ---------- show run info ----------
+if [[ -n "$RUN_ID" ]]; then
+  echo "🏷️  Using custom run ID: $RUN_ID"
+else
+  echo "🏷️  Run ID will be auto-generated (timestamp)"
+fi
+
+# ---------- loop ----------
+for oid in "${DATASET_IDS_RESOLVED[@]}"; do
+  for mdl in "${MODELS[@]}"; do
+    echo "→ Generating for model='$mdl' dataset='$oid' methods='$METHODS_STR'"
+    # Call the Python generator; forward args come last and untouched.
+    python "$PYGEN" \
+      --openml_id "$oid" \
+      --model "$mdl" \
+      "${COMMON_FLAGS[@]}" \
+      "${FORWARD_ARGS[@]}"
+  done
 done
 
-# ── 5. loop & launch ---------------------------------------------------------
-PY=experiments/generate_slurm_script.py
-TEST_FLAG=$([[ $TEST_MODE == true ]] && echo "--test" || echo "")
-CHECK_TIME_FLAG=$([[ $CHECK_TIME == true ]] && echo "--check_time"   || echo "")
-
-for ds in "${DATASETS[@]}"; do
-    OPENML_ID=${DATASET_IDS[$ds]}
-    for mdl in "${MODELS[@]}"; do
-        python "$PY" \
-            --openml_id "$OPENML_ID" \
-            --methods "$METHODS" \
-            --exp_group "$EXP_GROUP" \
-            --model "$mdl" \
-            $TEST_FLAG \
-            $CHECK_TIME_FLAG
-    done
-done
-
-echo "✓ All generate_slurm_script.py commands issued."
+echo "✓ All scripts generated."

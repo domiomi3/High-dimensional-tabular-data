@@ -5,7 +5,7 @@ from sklearn.feature_selection import (
     VarianceThreshold, SelectKBest, f_classif, f_regression, SelectFromModel
 )
 from sklearn.ensemble import ExtraTreesRegressor, ExtraTreesClassifier
-from sklearn.decomposition import PCA, FastICA, KernelPCA
+from sklearn.decomposition import PCA, KernelPCA
 from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import FeatureAgglomeration
 
@@ -15,24 +15,22 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
     def __init__(self, rand_state: int = 0, **config):
         self.rand_state = rand_state
         self.config = config
-        self.method = config["method"]      
         self._estimator = None # sklearn method
 
     def fit(self, X: pd.DataFrame, y=None):
         X = pd.DataFrame(X)
         y = None if y is None else pd.Series(y)       
 
-        method = self.method
-        config = self.config              
+        config = self.config   
+        method = config["method"]     
 
         if method == "original":
             self._estimator = None              
         elif method == "random_fs":
             self._estimator = list(
-                X.sample(n=config["n_features"], axis=1, random_state=self.rand_state).columns
+                X.sample(n=config["num_features"], axis=1, random_state=self.rand_state).columns
             )
         elif method == "variance_fs":
-            y = pd.Series(y)
             self._estimator = VarianceThreshold(
                 threshold=config["var_threshold"] * (1 - config["var_threshold"])
             ).fit(X, y)
@@ -40,26 +38,26 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
             base = (
                 ExtraTreesRegressor if config["task_type"] == "regression"
                 else ExtraTreesClassifier
-            )(n_estimators=config["n_tree_estimators"], random_state=self.rand_state)
+            )(n_estimators=config["num_tree_estimators"], random_state=self.rand_state)
             base.fit(X, y)
             self._estimator = SelectFromModel(base, prefit=True)
         elif method == "kbest_fs":
             stat = f_regression if config["task_type"] == "regression" else f_classif
-            self._estimator = SelectKBest(stat, k=config["n_features"]).fit(X, y)
+            self._estimator = SelectKBest(stat, k=config["num_features"]).fit(X, y)
         elif method == "pca_dr":
-            self._estimator = PCA(n_components=config["n_features"],
+            self._estimator = PCA(n_components=config["num_features"],
                                    random_state=self.rand_state).fit(X)
         elif method == "random_dr":
-            self._estimator = GaussianRandomProjection(n_components=config["n_features"], random_state=self.rand_state).fit(X)
+            self._estimator = GaussianRandomProjection(n_components=config["num_features"], random_state=self.rand_state).fit(X)
         elif method == "agglo_dr":
-            self._estimator = FeatureAgglomeration(n_clusters=config["n_features"]).fit(X)
+            self._estimator = FeatureAgglomeration(n_clusters=config["num_features"]).fit(X)
         elif method == "kpca_dr":
-            self._estimator = KernelPCA(n_components=config["n_features"], kernel="rbf", random_state=self.rand_state).fit(X)
+            self._estimator = KernelPCA(n_components=config["num_features"], kernel="rbf", random_state=self.rand_state).fit(X)
         elif method == "kbest+pca":
             # 1 k best
             stat = f_regression if config["task_type"] == "regression" else f_classif
 
-            self._selector = SelectKBest(stat, k=config["kbest_features"]).fit(X, y)
+            self._selector = SelectKBest(stat, k=config["num_kbest_features"]).fit(X, y)
             self._kbest_mask = self._selector.get_support() # selected columns
             # 2 PCA 
             remaining_cols = X.columns[~self._kbest_mask]
@@ -69,7 +67,7 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
                 self._pca = None
             else:
                 self._pca = PCA(
-                    n_components=config["pca_comps"],
+                    n_components=config["num_pca_comps"],
                     random_state=self.rand_state,
                 ).fit(X[remaining_cols])
         else:
@@ -80,7 +78,7 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = pd.DataFrame(X)
-        method = self.method
+        method = self.config["method"]
 
         if method == "original":
             return X

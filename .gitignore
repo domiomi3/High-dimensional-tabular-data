@@ -181,12 +181,19 @@ results_old/
 experiments/results/
 experiments/slurm_logs/
 external/
-external/tabrepo/
-OLDDDDD
-experiments/figures/
+tabrepo/
+tabrepo
+_OLD
+experiments/
 experiments/slurm_scripts/
-experiments/time_summary/
+experiments/summary/
 COMMANDS.md
 pivot_times.csv
 AutogluonModels/
 
+!experiments/figures/
+!experiments/figures/**
+!experiments/*.py
+!experiments/*.sh
+!experiments/*.ipynb
+.gitmodules

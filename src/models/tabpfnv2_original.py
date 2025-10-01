@@ -2,6 +2,9 @@ from models.base import TabModel
 from typing import Any
 
 class TabPFNv2Original(TabModel):
+    """
+    TabPFNv2 paper implementation.
+    """
     def __init__(
         self,
         task_type: str,
@@ -34,6 +37,7 @@ class TabPFNv2Original(TabModel):
                 device=self.device,
             )
         self.model.fit(X, y)
+        self.val_score = None
         return self
 
     def predict(self, X):

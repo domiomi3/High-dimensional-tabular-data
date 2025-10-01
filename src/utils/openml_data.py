@@ -2,40 +2,37 @@ import openml
 import re
 import logging
 
-from sklearn.metrics import root_mean_squared_error, roc_auc_score, log_loss
-
 logger = logging.getLogger(__name__) 
 
 def prepare_data(config):
     task, dataset = load_dataset(config["openml_id"])
     task_type, task_type_log = get_task_type(task)
-    eval_metric, eval_func   = get_eval_metric(task_type)
+    eval_metric = get_eval_metric(task_type)
 
     config.update({
         "dataset_name": dataset.name,
         "task_type": task_type,
         "eval_metric": eval_metric,
-        "eval_func": eval_func,
     })
 
     logger.info("")
     logger.info("Dataset:")
     logger.info("======================")
-    logger.info("OpenML task : %s", task.task_id)
-    logger.info("Task type   : %s", task_type_log)
+    logger.info("OpenML task: %s", task.task_id)
+    logger.info("Task type: %s", task_type_log)
     logger.info("Dataset name: %s", dataset.name)
 
     X, y = task.get_X_and_y(dataset_format="dataframe")
     config["ignore_limits"] = True if X.shape[1] >500 else False
-    logger.info("Data shape  : %s, %s", X.shape, y.shape)
+    logger.info("Dataset size: %s, %s", X.shape, y.shape)
 
     if config["dry_run"]:
-        config["n_repeats"], config["n_folds"], config["n_samples"] = (2, 2, 1)
-    else:
-        config["n_repeats"], config["n_folds"], config["n_samples"] = \
-            task.get_split_dimensions()
-    logger.info("Splits      : repeats=%d folds=%d samples=%d",
-                config["n_repeats"], config["n_folds"], config["n_samples"])
+        config["num_repeats"], config["num_folds"] = (2, 2)
+    else: # openml default or user-defined values
+        num_repeats_default, num_folds_default, _ = task.get_split_dimensions()
+        config["num_repeats"] = config.get("num_repeats") or num_repeats_default
+        config["num_folds"]   = config.get("num_folds")   or num_folds_default
+    
     return X, y, task
 
 
@@ -85,10 +82,10 @@ def get_task_type(task):
 
 def get_eval_metric(task_type):
     if task_type == "regression": 
-        return ["rmse", "norm_rmse"], root_mean_squared_error
+        return ["rmse", "norm_rmse"]
     elif task_type == "binary":
-        return ["roc_auc"], roc_auc_score
+        return ["roc_auc"]
     elif task_type == "multiclass":
-        return ["log_loss"], log_loss
+        return ["log_loss"]
     else:
         raise ValueError(f"No evaluation metric found for task type: {task_type}")

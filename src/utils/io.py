@@ -4,6 +4,7 @@ import yaml
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,8 @@ def save_run(results, config, fold_times):
     """
     Save experiment config to yaml and per-fold run results to csv.
     """
-    check_time = config["check_time"]
-    if check_time:
+    save_time = config["save_time"]
+    if save_time:
         avg_fold = float(np.mean(fold_times)) if fold_times else None
         total_sec = float(sum(fold_times)) if fold_times else None
         config.update({
@@ -73,7 +74,24 @@ def extract_hyperparams_from_filename(path):
 
 
 def rename_run_file(config):
-    id = config["dataset_name"] + "_" + config["method"] + "_" + config["time_start"]
+    id = config["dataset_name"] + "_" + config["method"] + "_num_features_" + str(config["num_features"]) + "_" + config["time_start"]
     config["config_file"] = id + "_config.yaml"
     config["results_file"] = id + "_results.csv"
 
+
+def abbrev_methods(meth: List[str]) -> str:
+    if meth == ["all"]:
+        return "all"
+
+    parts: list[str] = []
+    if "original" in meth:
+        parts.append("org")
+    if "kbest+pca" in meth:
+        parts.append("k+p")
+    fs = sorted(m for m in meth if m.endswith("_fs"))
+    dr = sorted(m for m in meth if m.endswith("_dr"))
+    if fs:
+        parts.append("fs_" + "".join(x[0] for x in fs))
+    if dr:
+        parts.append("dr_" + "".join(x[0] for x in dr))
+    return "_".join(parts) or "custom"

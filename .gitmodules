@@ -1,4 +1,0 @@
-[submodule "external/tabrepo"]
-	path = external/tabrepo
-	url = https://github.com/autogluon/tabrepo.git
-	branch = main

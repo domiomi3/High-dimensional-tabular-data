@@ -34,11 +34,11 @@ def log_metadata(config: Dict[str, Any]) -> None:
         return
 
     if method == "kbest+pca":
-        kbest_feat = config["kbest_features"]
-        pca_comps = config["pca_comps"]
+        num_kbest_features = config["num_kbest_features"]
+        num_pca_comps = config["num_pca_comps"]
         logger.info("Category: Feature selection + Dimensionality reduction")
         logger.info("Method: K best selection + PCA")
-        logger.info(f"HPs: Top-k features(75%): {kbest_feat}, PCA components(25%): {pca_comps}")
+        logger.info(f"HPs: Top-k features(75%): {num_kbest_features}, PCA components(25%): {num_pca_comps}")
         return
     
     cat = ("Feature selection" if method.endswith("_fs")
@@ -46,20 +46,20 @@ def log_metadata(config: Dict[str, Any]) -> None:
     logger.info("Category: %s", cat)
     logger.info("Method: %s", display_method)
 
-    n_feat = config["n_features"]
+    num_feat = config["num_features"]
     vt = config["var_threshold"]
-    n_trees= config["n_tree_estimators"]
+    num_trees= config["num_tree_estimators"]
 
     if method == "random_fs":
-        logger.info("HPs: Maximum number of features: %d", n_feat)
+        logger.info("HPs: Maximum number of features: %d", num_feat)
     elif method == "variance_fs":
         logger.info("HPs: Threshold: %.3f", vt)
     elif method == "tree_fs":
-        logger.info("HPs: Number of estimators: %d", n_trees)
+        logger.info("HPs: Number of estimators: %d", num_trees)
     elif method == "kbest_fs":
-        logger.info("HPs: Top-k features: %d", n_feat)
+        logger.info("HPs: Top-k features: %d", num_feat)
     elif method in {"pca_dr", "random_dr", "agglo_dr", "kpca_dr"}:
-        logger.info("HPs: Components/features: %d", n_feat)
+        logger.info("HPs: Components/features: %d", num_feat)
         if method == "kpca_dr":
             logger.info("Kernel: RBF")
     else:
@@ -69,14 +69,14 @@ def log_metadata(config: Dict[str, Any]) -> None:
 def run_preprocessing_pipeline(
     X_train, X_test, y_train, y_test, random_state, config, metadata_flag
 ):
-    # pass only these
-    feature_generator, label_cleaner, tab_preprocessor = (
+    preprocessing = config["preprocessing"] # model-agnostic or model-specific
+    
+    # AG tab data preprocessing
+    feature_generator, label_cleaner = (
         AutoMLPipelineFeatureGenerator(),
         LabelCleaner.construct(problem_type=config["task_type"], y=y_train),
-        TabPreprocessor(rand_state=random_state, **config)
-    )
 
-    # AG tab data preprocessing
+    )
     X_train, y_train = (
         feature_generator.fit_transform(X_train),
         label_cleaner.transform(y_train),
@@ -84,12 +84,19 @@ def run_preprocessing_pipeline(
     X_test, y_test = feature_generator.transform(X_test), label_cleaner.transform(y_test)
 
     # feature dimensionality reduction/selection
-    X_train = tab_preprocessor.fit_transform(X=X_train, y=y_train)
-    X_test = tab_preprocessor.transform(X_test)
+    if preprocessing == "model-agnostic":
+        tab_preprocessor = TabPreprocessor(rand_state=random_state, **config) 
+        X_train = tab_preprocessor.fit_transform(X=X_train, y=y_train)
+        X_test = tab_preprocessor.transform(X_test)
 
     # log if first iteration
     if metadata_flag:
-        log_metadata(config)
         logger.info("Using AutoGluon's AutoMLPipelineFeatureGenerator() and LabelCleaner().")
+        if preprocessing == "model-agnostic":
+            logger.info("Model-agnostic FS/DR.")
+        else:
+            logger.info("Model-specific (per-fold) FS/DR.")
+        log_metadata(config)
+
 
     return X_train, X_test, y_train, y_test
