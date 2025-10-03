@@ -17,7 +17,7 @@ def check_resource_availability(req_device, num_req_cpus, num_req_gpus):
     if 'SLURM_CPUS_PER_TASK' in os.environ:
         num_avail_cpus = int(os.environ['SLURM_CPUS_PER_TASK'])
     else: # fallback for non-slurm runs
-        num_avail_cpus = multiprocessing.cpu_count()
+        num_avail_cpus = len(os.sched_getaffinity(0)) # how many cpus the process is allowed to run on
     num_avail_gpus = torch.cuda.device_count()
 
     abort = False

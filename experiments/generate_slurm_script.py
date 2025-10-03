@@ -46,7 +46,7 @@ SLURM_TEMPLATE = """#!/bin/bash
 #SBATCH --job-name={job_name}
 #SBATCH --time={time}
 #SBATCH --cpus-per-task={cpus_per_task}
-#SBATCH --mem=32gb
+#SBATCH --mem-per-cpu=8GB
 #SBATCH --export=ALL
 #SBATCH --output=/dev/null
 #SBATCH --error=/dev/null
@@ -54,7 +54,6 @@ SLURM_TEMPLATE = """#!/bin/bash
 
 # CUDA memory management / debugging
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:128"
-export CUDA_LAUNCH_BLOCKING=1
 export TORCH_SHOW_CPP_STACKTRACES=1
 export OMP_NUM_THREADS={cpus_per_task}
 export MKL_NUM_THREADS={cpus_per_task}
