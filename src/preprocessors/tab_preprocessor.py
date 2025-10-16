@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA, KernelPCA
 from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import FeatureAgglomeration
 
+from .sand_layer import SANDProcessor
 
 class TabPreprocessor(BaseEstimator, TransformerMixin):
 
@@ -70,6 +71,13 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
                     n_components=config["num_pca_comps"],
                     random_state=self.rand_state,
                 ).fit(X[remaining_cols])
+        elif method == "sand_fs":
+            self._estimator = SANDProcessor(
+                num_features=config["num_features"], 
+                device=config["device"],
+                task_type=config["task_type"],
+                random_state=self.rand_state
+            ).fit(X, y)
         else:
             raise ValueError(f"Unknown method {method}")
             
@@ -96,6 +104,8 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
                 return pd.concat([kbest_df, pca_df], axis=1)
             else:
                 return kbest_df # if all cols selected
+        elif method == "sand_fs":
+            return X[self._estimator.selected_cols_]
         else:
             return pd.DataFrame(self._estimator.transform(X))
 

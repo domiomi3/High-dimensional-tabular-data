@@ -1,7 +1,8 @@
 import gc
+import numpy as np
 import os
-import multiprocessing  
 import psutil
+import random
 import sys
 import torch
 import logging
@@ -59,7 +60,7 @@ def log_device_info(req_device, num_req_gpus, num_req_cpus):
     logger.info("") 
     logger.info("Hardware configuration:")
     logger.info("======================")
-    if req_device == "cuda":
+    if req_device == "cuda" and torch.cuda.is_available():
         dev_id   = torch.cuda.current_device()
         dev_name = torch.cuda.get_device_name(dev_id)
         logger.info("Current device: GPU %d – %s", dev_id, dev_name)
@@ -82,11 +83,10 @@ def log_mem():
         logger.info(f"GPU Memory Reserved: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
 
 
-def memory_cleanup(model, X_train, X_test, y_train, y_test):
-    del model
-    del X_train, X_test, y_train, y_test
+def memory_cleanup():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
     gc.collect()
 
 
@@ -99,8 +99,9 @@ def get_device() -> str:
     return "cpu"
 
 
-def count_gpus() -> int:
-    return torch.cuda.device_count()
-
-def count_cpus() -> int:
-    return torch.cpu.device_count()
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed) 

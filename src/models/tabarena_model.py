@@ -68,13 +68,14 @@ class TabArenaModel(TabModel):
             # create a base model class given the parent class (e.g. CatBoost, TabPFNv2Model)
             model_cls = self.model_class 
             # pass arguments for FS/DR method
-            if self.kwargs["method_args"]:
+            if self.kwargs["method_args"] and self.cross_validation_bagging:
                 model_config["hyperparameters"].update(**self.kwargs)
         else:
             model_cls = meta.model_cls
+        
+        base_config = {k: v for k, v in model_config.items() if k != "ag_args_ensemble"}
 
         if self.cross_validation_bagging:
-            base_config = {k: v for k, v in model_config.items() if k != "ag_args_ensemble"}
             base_model = model_cls(
                 problem_type=self.task_type,
                 eval_metric=self.eval_metric,

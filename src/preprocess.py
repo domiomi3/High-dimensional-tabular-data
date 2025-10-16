@@ -21,6 +21,7 @@ _METHOD_FULLNAME = {
     "random_dr":    "Gaussian random projection",
     "agglo_dr":     "Feature agglomeration",
     "kpca_dr":      "Kernel PCA",
+    "sand_fs":      "SAND layer"
 }
 
 def log_metadata(config: Dict[str, Any]) -> None:
@@ -62,6 +63,8 @@ def log_metadata(config: Dict[str, Any]) -> None:
         logger.info("HPs: Components/features: %d", num_feat)
         if method == "kpca_dr":
             logger.info("Kernel: RBF")
+    elif method == "sand_fs":
+        logger.info("HPs: Number of features: %d", num_feat)
     else:
         logger.warning("Unknown preprocessing method %s", method)
 

@@ -34,7 +34,7 @@ from utils.openml_data import load_dataset
 # -----------------------------------------------------------------------------
 ALLOWED_METHODS = (
     "original random_fs variance_fs tree_fs kbest_fs "
-    "pca_dr random_dr kpca_dr agglo_dr kbest+pca"
+    "pca_dr random_dr kpca_dr agglo_dr kbest+pca sand_fs" 
 ).split()
 
 # -----------------------------------------------------------------------------

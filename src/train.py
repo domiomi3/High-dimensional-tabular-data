@@ -15,7 +15,7 @@ from preprocess import run_preprocessing_pipeline
 from utils.openml_data import prepare_data
 from utils.misc import add_method_args
 from utils.io import save_run, rename_run_file   
-from utils.hardware import get_device, memory_cleanup, set_hardware_config
+from utils.hardware import get_device, memory_cleanup, set_hardware_config, set_seed
 from utils.loggers import setup_logger                  
 from models import make_model
 
@@ -31,7 +31,7 @@ def train(X, y, task, config) -> List[dict]:
     task_type   = config["task_type"]
     eval_metric = config["eval_metric"]
     ignore_limits = config["ignore_limits"]
-    model_key   = config["model"]
+    model_key = config["model"]
     preprocessing = config["preprocessing"]
     save_time  = config["save_time"]
     model_checkpoints_dir = config["model_checkpoints_dir"]
@@ -108,8 +108,7 @@ def train(X, y, task, config) -> List[dict]:
                 # train model
                 model = model.fit(X_train, y_train)
                 score = model.score(X_test, y_test)
-                memory_cleanup(model, X_train, X_test, y_train, y_test)
-
+                
                 # add norm_rmse and validation score
                 extra = {}
                 if task_type == "regression" and "norm_rmse" in eval_metric:
@@ -141,6 +140,10 @@ def train(X, y, task, config) -> List[dict]:
                     log_parts.append(f"normRMSE: {extra['norm_rmse']:.4f}")
                 logger.info(" | ".join(log_parts))
 
+                # clean up memory
+                del model, X_train, X_test, y_train, y_test
+                memory_cleanup()
+
             except Exception as e:
                 logger.exception(
                     "Failure r%02d f%02d s%02d m%-10s",
@@ -158,6 +161,7 @@ def train(X, y, task, config) -> List[dict]:
 def main(config):
 
     # setup
+    set_seed(config["seed"])
     setup_logger(config["log_level"].upper())
     set_hardware_config(config)
 
@@ -201,6 +205,7 @@ if __name__ == "__main__":
     ALL_METHODS = [
         "original", "random_fs", "variance_fs", "tree_fs", "kbest_fs",
         "pca_dr", "random_dr", "agglo_dr", "kpca_dr", "kbest+pca",
+        "sand_fs"
     ]
 
     TABARENA_MODELS = {
@@ -215,9 +220,9 @@ if __name__ == "__main__":
     parser.add_argument("--log_level", default="INFO",
                     choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     # experiment type
-    parser.add_argument("--method", nargs="+", default=["original", "tree_fs"],
+    parser.add_argument("--method", nargs="+", default=["random_fs"],
                     choices = ALL_METHODS, help="Sklearn method/combination of methods.")
-    parser.add_argument("--openml_id", type=str, default="363697", 
+    parser.add_argument("--openml_id", type=str, default="363620", 
                         help="OpenML task ID or dataset name.")
     parser.add_argument("--model", default="tabpfnv2_tab",
                   choices=["tabpfnv2_org", "tabpfnv2_tab", "catboost_tab", "realmlp_tab"],
