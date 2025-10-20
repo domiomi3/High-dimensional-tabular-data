@@ -27,7 +27,7 @@ SRC_DIR = ROOT / "src"
 sys.path.append(str(SRC_DIR))
 
 from utils.io import abbrev_methods
-from utils.openml_data import load_dataset
+from utils.data_preparation import load_dataset
 
 # -----------------------------------------------------------------------------
 # Methods
@@ -58,7 +58,7 @@ export TORCH_SHOW_CPP_STACKTRACES=1
 export OMP_NUM_THREADS={cpus_per_task}
 export MKL_NUM_THREADS={cpus_per_task}
 
-OPENML_ID={openml_id}
+{data_source_vars}
 MODEL={model}
 
 WORKING_DIR={working_dir}
@@ -76,7 +76,7 @@ LOG_ID="${{SLURM_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
 exec >  "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.out" \
     2> "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.err"
 
-echo "Running method ${{METHOD}} with ${{MODEL}} on OpenML task ${{OPENML_ID}}"
+echo "Running method ${{METHOD}} with ${{MODEL}} on {data_description}"
 
 cd "$WORKING_DIR"
 
@@ -97,7 +97,7 @@ source "$VENV_DIR/bin/activate"
 # Run python script
 "$PYTHON_EXE" "$PYTHON_SCRIPT" \\
   --method "$METHOD" \\
-  --openml_id "$OPENML_ID" \\
+  {data_source_arg} \\
   --model "$MODEL" \\
   --results_dir "$RESULTS_DIR" \\
   --model_checkpoints_dir "$MODEL_CHECKPOINTS_DIR" {save_time_flag}{dry_run_flag}{forward_args}
@@ -209,6 +209,9 @@ def write_script(
     script_suffix: str,
     gres_line: str,
     cpus_per_task: int,
+    data_source_vars: str,
+    data_source_arg: str,
+    data_description: str,
 ):
     abbr = abbrev_methods(methods_list)
     extra = "_test" if args.dry_run else ""
@@ -232,10 +235,12 @@ def write_script(
         model=args.model,
         dry_run_flag=dry_run_flag,
         save_time_flag=save_time_flag,
-        openml_id=args.openml_id,
         forward_args=forward_args,
         gres_line=gres_line,
         cpus_per_task=cpus_per_task,
+        data_source_vars=data_source_vars,
+        data_source_arg=data_source_arg,
+        data_description=data_description,
     )
 
     with script_path.open("w") as f:
@@ -251,7 +256,12 @@ def write_script(
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate Slurm array scripts for TabPFN/OpenML runs.")
-    ap.add_argument("--openml_id", required=True)
+    
+    # Make openml_id and csv_path mutually exclusive but require one
+    data_group = ap.add_mutually_exclusive_group(required=True)
+    data_group.add_argument("--openml_id", type=str, help="OpenML task ID")
+    data_group.add_argument("--csv_path", type=str, help="Path to CSV file")
+    
     ap.add_argument("--methods", required=True, help="Space-separated list or 'all'")
     ap.add_argument("--exp_group", required=True)
     ap.add_argument("--model", required=True)
@@ -268,13 +278,27 @@ def main() -> None:
 
     args, extra_args = ap.parse_known_args()
 
-    # Methods & dataset
+    # Methods
     methods = parse_methods(args.methods)
-    try:
-        dataset_raw = safe_load_dataset(args.openml_id)
-        dataset_name = clean(dataset_raw)
-    except Exception as e:
-        sys.exit(f"❌ Could not load dataset: {e}")
+    
+    # Determine dataset name and description
+    if args.openml_id:
+        try:
+            dataset_raw = safe_load_dataset(args.openml_id)
+            dataset_name = clean(dataset_raw)
+        except Exception as e:
+            sys.exit(f"❌ Could not load dataset: {e}")
+        data_source_vars = f"OPENML_ID={args.openml_id}"
+        data_source_arg = '--openml_id "$OPENML_ID"'
+        data_description = f"OpenML task ${{OPENML_ID}}"
+    else:  # csv_path
+        csv_path = Path(args.csv_path)
+        if not csv_path.exists():
+            sys.exit(f"❌ CSV file not found: {args.csv_path}")
+        dataset_name = clean(csv_path.stem)
+        data_source_vars = f'CSV_PATH="{args.csv_path}"'
+        data_source_arg = '--csv_path "$CSV_PATH"'
+        data_description = f"CSV ${{CSV_PATH}}"
 
     # Run name
     run_id = args.run_id if args.run_id else generate_run_timestamp()
@@ -349,6 +373,9 @@ def main() -> None:
             script_suffix=suffix,
             gres_line=gres_line,
             cpus_per_task=final_cpus,
+            data_source_vars=data_source_vars,
+            data_source_arg=data_source_arg,
+            data_description=data_description,
         )
 
 

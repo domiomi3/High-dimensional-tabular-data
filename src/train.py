@@ -11,8 +11,10 @@ from typing import List
 import numpy as np
 import pandas as pd
 
+from sklearn.model_selection import train_test_split
+
 from preprocess import run_preprocessing_pipeline    
-from utils.openml_data import prepare_data
+from utils.data_preparation import prepare_data
 from utils.misc import add_method_args
 from utils.io import save_run, rename_run_file   
 from utils.hardware import get_device, memory_cleanup, set_hardware_config, set_seed
@@ -57,11 +59,22 @@ def train(X, y, task, config) -> List[dict]:
 
             try:
                 # get OpenML task train/test splits
-                train_idx, test_idx = task.get_train_test_split_indices(
-                    repeat=rep, fold=fold)
-                X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
-                X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
-
+                if task:
+                    train_idx, test_idx = task.get_train_test_split_indices(
+                        repeat=rep, fold=fold)
+                    X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
+                    X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
+                else:
+                    # tODO: split based on repreat and fold
+                      # Split based on repeat and fold with deterministic seed
+                    fold_seed = rep_seed + fold
+                    X_train, X_test, y_train, y_test = train_test_split(
+                        X, y, 
+                        test_size=0.33,  # adjust as needed
+                        random_state=fold_seed,
+                        stratify=y if task_type in ("binary", "multiclass") else None  # stratify for classification
+                    )
+                
                 # preprocess data (default preprocessing + optional FS/DR)
                 X_train, X_test, y_train, y_test = run_preprocessing_pipeline(
                     X_train, X_test, y_train, y_test,
@@ -97,11 +110,13 @@ def train(X, y, task, config) -> List[dict]:
                     if X_train.shape[1] > 500:
                         logger.warning("Number of features >500, "
                                         "TabPFN may underperform.")
+                    
+                    model_name = "TabPFN-Wide" if model_key == "tabpfn_wide" else model.model_name 
                     logger.info("") 
                     logger.info("Training")
                     logger.info("======================")
                     logger.info("Splits: repeats=%d folds=%d", config["num_repeats"], config["num_folds"])
-                    logger.info(f"Model: {model.model_name} implemented with {model.__class__.__name__} class")
+                    logger.info(f"Model: {model_name} implemented with {model.__class__.__name__} class")
                     logger.info("") 
                     first_iter_flag = False
 
@@ -211,7 +226,7 @@ if __name__ == "__main__":
     TABARENA_MODELS = {
         "tabpfnv2_tab": "TabPFNv2", 
         "catboost_tab": "CatBoost", 
-        "realmlp_tab": "RealMLP"
+        "realmlp_tab": "RealMLP",
     }
 
     parser = argparse.ArgumentParser(
@@ -222,10 +237,13 @@ if __name__ == "__main__":
     # experiment type
     parser.add_argument("--method", nargs="+", default=["random_fs"],
                     choices = ALL_METHODS, help="Sklearn method/combination of methods.")
-    parser.add_argument("--openml_id", type=str, default="363620", 
-                        help="OpenML task ID or dataset name.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--openml_id", type=str, 
+                    help="OpenML task ID or dataset name.")
+    group.add_argument("--csv_path", type=str, 
+                   help="Path to .csv with data.")
     parser.add_argument("--model", default="tabpfnv2_tab",
-                  choices=["tabpfnv2_org", "tabpfnv2_tab", "catboost_tab", "realmlp_tab"],
+                  choices=["tabpfnv2_org", "tabpfn_wide", "tabpfnv2_tab", "catboost_tab", "realmlp_tab"],
                   help="TabArena model.")
     parser.add_argument("--preprocessing", default="model-specific", 
                         choices=["model-specific", "model-agnostic"], 

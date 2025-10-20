@@ -18,8 +18,9 @@ def load_results(rootdir, requested_columns=[]):
                     csv_path = os.path.join(subdir, filename)
                     df_all = pd.read_csv(csv_path)
                     metric = [m_col for m_col in df_all.columns if m_col in metrics][0]
-                    val_metric = [m_col for m_col in df_all.columns if m_col == f"val_{metric}"][0]
-                    columns_req = columns + [metric] + [val_metric]
+                    # val_metric = [m_col for m_col in df_all.columns if m_col == f"val_{metric}"][0]
+                    columns_req = columns + [metric] 
+                    # + [val_metric]
                     df_req = df_all[columns_req].copy()
                     df_list.append(df_req)
 

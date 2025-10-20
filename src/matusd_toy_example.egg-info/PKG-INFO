@@ -1,3 +1,20 @@
+Metadata-Version: 2.4
+Name: matusd-toy-example
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: autogluon>=1.4.0
+Requires-Dist: configspace>=1.2.1
+Requires-Dist: ipykernel>=6.30.1
+Requires-Dist: numpy>=2.1.3
+Requires-Dist: openml>=0.15.1
+Requires-Dist: pip>=25.2
+Requires-Dist: pytabkit>=1.6.1
+Requires-Dist: tabpfn>=2.1.3
+Requires-Dist: tensorflow>=2.20.0
+Requires-Dist: torch>=2.7.1
+
 # Learning representations of high dimensional tabular data
 
 This code performs [feature selection](https://scikit-learn.org/stable/modules/feature_selection.html) and [dimensionality reduction](https://scikit-learn.org/stable/modules/unsupervised_reduction.html) with most of the available sklearn methods on the (high dimensional) OpenML datasets and runs tabular models from TabArena (TabPFNv2, CatBoost etc.) with the resulting data representations for the dataset-specified task. 
@@ -38,9 +55,3 @@ hiva: 363677
 ```
 
 The results are saved to .csv file along with config.yaml under the experiments/results/dataset-name/model-name/method-name directory.
-
-
-# TabPFN-Wide
-After installing TabPFN-Wide, please fix the import error "ModuleNotFoundError: No module named 'tabpfn.model.attention.full_attention'; 'tabpfn.model.attention' is not a package" by changing the path to tabpfn.architectures.base.attention
-
-+ line 45 in patches.py from device_=self.device_ to devices_=self.devices_

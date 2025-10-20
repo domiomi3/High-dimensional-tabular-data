@@ -3,7 +3,7 @@
 # Positionals (in this order):
 #   1) MODELS   – space-separated list in quotes OR 'all'
 #   2) DATASETS – space-separated list in quotes OR 'all'
-#                 (tokens can be aliases: bioresponse|hiva|qsar OR numeric OpenML IDs)
+#                 (tokens can be aliases: bioresponse|hiva|qsar OR numeric OpenML IDs OR csv:path)
 #   3) METHODS  – space-separated list in quotes OR 'all'
 #
 # Any args after a literal `--` are forwarded verbatim to the Python generator,
@@ -13,6 +13,7 @@
 #   ./generate_slurm_scripts.sh "tabpfnv2_tab catboost_tab" all "kbest_fs random_fs" -- --num_features 123 --seed 324
 #   ./generate_slurm_scripts.sh all all all -g final -c -- --fs_ratio 0.6
 #   ./generate_slurm_scripts.sh "tabpfnv2_tab" "hiva 363697" all -t -g debug -r 20241229_143000 -- --log_level DEBUG
+#   ./generate_slurm_scripts.sh "tabpfnv2_tab" "csv:/path/to/data.csv" all -g csv_test
 #
 set -euo pipefail
 
@@ -69,6 +70,13 @@ while [[ $# -gt 0 ]]; do
 Usage:
   generate_all.sh "<models|all>" "<datasets|all>" "<methods|all>" [options] -- [forwarded args]
 
+For datasets, you can specify:
+  - 'all' for all predefined datasets
+  - Space-separated OpenML task IDs (e.g., "363620 363677")
+  - Space-separated aliases (e.g., "bioresponse hiva")
+  - CSV paths prefixed with 'csv:' (e.g., "csv:/path/to/data.csv")
+  - Mix of the above (e.g., "bioresponse csv:/data/custom.csv 363697")
+
 Options (handled here, passed to the generator accordingly):
   -t, --dry_run             Use --dry_run in Python script (short wallclock)
   -c, --save_time           Use --save_time in Python script
@@ -124,16 +132,20 @@ else
   read -r -a DATASETS_TOKENS <<<"$DATASETS_ARG"
 fi
 
-# resolve datasets to OpenML IDs (numeric pass-through; aliases via map)
-declare -a DATASET_IDS_RESOLVED=()
+# resolve datasets to OpenML IDs or CSV paths
+declare -a DATASET_ARGS=()
 for tok in "${DATASETS_TOKENS[@]}"; do
-  if [[ "$tok" =~ ^[0-9]+$ ]]; then
-    DATASET_IDS_RESOLVED+=("$tok")
+  if [[ "$tok" =~ ^csv: ]]; then
+    # Strip 'csv:' prefix and add as csv_path argument
+    csv_file="${tok#csv:}"
+    DATASET_ARGS+=("csv_path:$csv_file")
+  elif [[ "$tok" =~ ^[0-9]+$ ]]; then
+    DATASET_ARGS+=("openml_id:$tok")
   else
     if [[ -v "DATASET_IDS[$tok]" ]]; then
-      DATASET_IDS_RESOLVED+=("${DATASET_IDS[$tok]}")
+      DATASET_ARGS+=("openml_id:${DATASET_IDS[$tok]}")
     else
-      echo "❌ Unknown dataset alias '$tok'. Allowed: ${!DATASET_IDS[*]} or numeric ID or 'all'." >&2
+      echo "❌ Unknown dataset alias '$tok'. Allowed: ${!DATASET_IDS[*]} or numeric ID or 'csv:/path' or 'all'." >&2
       exit 1
     fi
   fi
@@ -142,8 +154,8 @@ done
 # methods string is passed as-is (could be "all" or a quoted list)
 METHODS_STR="$METHODS_ARG"
 
-# sanity: at least one dataset id if not "all"
-if [[ "${#DATASET_IDS_RESOLVED[@]}" -eq 0 ]]; then
+# sanity: at least one dataset arg if not "all"
+if [[ "${#DATASET_ARGS[@]}" -eq 0 ]]; then
   echo "❌ No datasets resolved. Check your DATASETS argument." >&2
   exit 1
 fi
@@ -172,15 +184,25 @@ else
 fi
 
 # ---------- loop ----------
-for oid in "${DATASET_IDS_RESOLVED[@]}"; do
+for data_arg in "${DATASET_ARGS[@]}"; do
   for mdl in "${MODELS[@]}"; do
-    echo "→ Generating for model='$mdl' dataset='$oid' methods='$METHODS_STR'"
-    # Call the Python generator; forward args come last and untouched.
-    python "$PYGEN" \
-      --openml_id "$oid" \
-      --model "$mdl" \
-      "${COMMON_FLAGS[@]}" \
-      "${FORWARD_ARGS[@]}"
+    if [[ "$data_arg" =~ ^openml_id: ]]; then
+      oid="${data_arg#openml_id:}"
+      echo "→ Generating for model='$mdl' openml_id='$oid' methods='$METHODS_STR'"
+      python "$PYGEN" \
+        --openml_id "$oid" \
+        --model "$mdl" \
+        "${COMMON_FLAGS[@]}" \
+        "${FORWARD_ARGS[@]}"
+    else  # csv_path
+      csv_path="${data_arg#csv_path:}"
+      echo "→ Generating for model='$mdl' csv_path='$csv_path' methods='$METHODS_STR'"
+      python "$PYGEN" \
+        --csv_path "$csv_path" \
+        --model "$mdl" \
+        "${COMMON_FLAGS[@]}" \
+        "${FORWARD_ARGS[@]}"
+    fi
   done
 done
 

@@ -1,7 +1,7 @@
 from .base import TabModel
 from .tabpfnv2_original import TabPFNv2Original
 from .tabarena_model import TabArenaModel  
-from .tabarena_msp_model import TabPFNV2MSPModel, CatBoostMSPModel
+from .tabarena_msp_model import TabPFNV2MSPModel, CatBoostMSPModel, TabPFNWideMSPModel
 
 _TABARENA_MODEL_REGISTRY = {
     # "realmlp_tab":   "RealMLP",
@@ -14,6 +14,10 @@ _TABARENA_MODEL_REGISTRY = {
         "name": "TabPFNv2", 
         "class": TabPFNV2MSPModel
     },
+    "tabpfn_wide": {
+        "name": "TabPFNv2", # needs to be recognizable by TabArena
+        "class": TabPFNWideMSPModel
+    }
     # "xgboost_tab":   "XGBoost",
     # "modernnca_tab": "ModernNCA",
     # "tabicl_tab":    "TabICL",

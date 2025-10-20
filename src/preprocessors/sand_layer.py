@@ -43,7 +43,6 @@ class SANDProcessor:
         """
         def __init__(self, d, k, sigma):
             super().__init__()
-            import math
             self.k, self.sigma = k, sigma
             init = (k / d) ** 0.5
             self.w_raw = torch.nn.Parameter(torch.full((d,), init, dtype=torch.float32))

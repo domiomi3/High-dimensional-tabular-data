@@ -7,9 +7,9 @@ Scalability (row-level std) for TabPFNv2 with random feature selection.
 - Std visuals (band/errorbars) use a lighter blue than the mean line.
 
 Example:
-  python plot_scalability_rows_std.py \
-    --root /work/dlclarge2/matusd-toy_example/experiments/results/scalability_study/bioresponse/tabpfnv2_tab/random_fs \
-    --out_png scalability_tabpfnv2_random_fs.png \
+  python experiments/plot_scale_study.py \
+    --root /work/dlclarge2/matusd-toy_example/experiments/results/scalability_study/complete/hiva_agnostic/tabpfnv2_tab/random_fs \
+    --out_png experiments/figures/scale_study/scalability_tabpfnv2_random_fs.png \
     --out_csv scalability_summary_rows.csv \
     --var_style both \
     --xtick_rotation 30
@@ -165,17 +165,17 @@ def main() -> None:
             skipped += 1
             continue
 
-        if "roc_auc" not in df.columns:
-            print(f"⚠️  Skip {csv_path.name}: 'roc_auc' column not found.")
+        if "log_loss" not in df.columns:
+            print(f"⚠️  Skip {csv_path.name}: 'log_loss' column not found.")
             skipped += 1
             continue
 
         tmp = pd.DataFrame({
             "num_features": int(num_features),
-            "roc_auc": pd.to_numeric(df["roc_auc"], errors="coerce"),
-        }).dropna(subset=["roc_auc"])
+            "log_loss": pd.to_numeric(df["log_loss"], errors="coerce"),
+        }).dropna(subset=["log_loss"])
         if len(tmp) == 0:
-            print(f"⚠️  Skip {csv_path.name}: no valid roc_auc values.")
+            print(f"⚠️  Skip {csv_path.name}: no valid log_loss values.")
             skipped += 1
             continue
 
@@ -190,13 +190,13 @@ def main() -> None:
 
     # Row-level aggregation
     summary = (
-        rows_df.groupby("num_features")["roc_auc"]
+        rows_df.groupby("num_features")["log_loss"]
         .agg(["mean", "std", "count"])
         .reset_index()
         .sort_values("num_features")
-        .rename(columns={"mean": "roc_auc_mean", "std": "roc_auc_std", "count": "n_rows"})
+        .rename(columns={"mean": "log_loss_mean", "std": "log_loss_std", "count": "n_rows"})
     )
-    summary["roc_auc_std"] = summary["roc_auc_std"].fillna(0.0)
+    summary["log_loss_std"] = summary["log_loss_std"].fillna(0.0)
     summary.to_csv(out_csv, index=False)
     print(f"✓ Rows used: {used} file(s), skipped: {skipped} file(s)")
     print(f"✓ Wrote summary CSV: {out_csv}")
@@ -207,11 +207,11 @@ def main() -> None:
 
     # Plot
     xs = summary["num_features"].values
-    ys = summary["roc_auc_mean"].values
-    ystd = summary["roc_auc_std"].values
+    ys = summary["log_loss_mean"].values
+    ystd = summary["log_loss_std"].values
 
     plt.figure(figsize=(args.fig_w, args.fig_h))
-    line, = plt.plot(xs, ys, marker="o", label="Mean ROC AUC", color=base_color)
+    line, = plt.plot(xs, ys, marker="o", label="Mean log loss", color=base_color)
 
     if args.var_style in {"band", "both"}:
         plt.fill_between(xs, ys - ystd, ys + ystd, alpha=args.band_alpha, color=std_color, label="±1 std")
@@ -237,7 +237,7 @@ def main() -> None:
 
     plt.title(args.title)
     plt.xlabel("Number of features")
-    plt.ylabel("ROC AUC")
+    plt.ylabel("log loss")
     if args.var_style != "none":
         plt.legend()
     plt.grid(True, linestyle="--", alpha=0.4)
