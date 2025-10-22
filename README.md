@@ -3,6 +3,15 @@
 This code performs [feature selection](https://scikit-learn.org/stable/modules/feature_selection.html) and [dimensionality reduction](https://scikit-learn.org/stable/modules/unsupervised_reduction.html) with most of the available sklearn methods on the (high dimensional) OpenML datasets and runs tabular models from TabArena (TabPFNv2, CatBoost etc.) with the resulting data representations for the dataset-specified task. 
 
 
+Clone the repository with the submodules (tabrepo and TabPFN-Wide):
+```
+git clone --recurse-submodules fsdjk
+```
+or if already cloned:
+```
+git submodule update --init --recursive
+```
+
 Create and activate the environment:
 ```
 uv venv

@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from tabpfn import TabPFNClassifier, TabPFNRegressor
 from tabpfn.utils import meta_dataset_collator
 
-from utils.hardware import memory_cleanup
+from high_tab.utils.hardware import memory_cleanup
 
 logger = logging.getLogger(__name__)
 

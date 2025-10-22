@@ -1,5 +1,6 @@
-from models.base import TabModel
 from typing import Any
+
+from high_tab.models.base import TabModel
 
 class TabPFNv2Original(TabModel):
     """

@@ -1,6 +1,5 @@
 import logging
 
-
 def setup_logger(log_level: str):
     log_level = getattr(logging, log_level.upper(), logging.INFO)
     logging.basicConfig(

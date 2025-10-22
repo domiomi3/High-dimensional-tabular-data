@@ -1,7 +1,7 @@
 from tabrepo.models.utils import get_configs_generator_from_name
 from autogluon.core.models import BaggedEnsembleModel
 
-from models.base import TabModel
+from high_tab.models.base import TabModel
 
 
 class TabArenaModel(TabModel): 
@@ -62,7 +62,7 @@ class TabArenaModel(TabModel):
         if "hyperparameters" not in model_config:
             model_config["hyperparameters"] = {}
         if self.model_name == "TabPFNv2":
-            model_config["hyperparameters"]["ag.max_features"] = 3000 # allow >500 features                        
+            model_config["hyperparameters"]["ag.max_features"] = 10000 # allow >500 features                        
 
         if self.preprocessing=="model-specific":
             # create a base model class given the parent class (e.g. CatBoost, TabPFNv2Model)

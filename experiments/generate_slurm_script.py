@@ -21,13 +21,8 @@ ORIGINAL_WALLTIME = "14:00:00"
 OTHER_WALLTIME = "10:00:00"
 DRYRUN_WALLTIME = "01:30:00"
 
-# add project src/ dir to sys.path
-ROOT = Path(__file__).resolve().parents[1]  # project root
-SRC_DIR = ROOT / "src"
-sys.path.append(str(SRC_DIR))
-
-from utils.io import abbrev_methods
-from utils.data_preparation import load_dataset
+from high_tab.utils.io import abbrev_methods
+from high_tab.utils.data_preparation import load_dataset
 
 # -----------------------------------------------------------------------------
 # Methods
@@ -64,7 +59,7 @@ MODEL={model}
 WORKING_DIR={working_dir}
 VENV_DIR={venv_dir}
 PYTHON_EXE={python_exe}
-PYTHON_SCRIPT="$WORKING_DIR/src/train.py"
+PYTHON_MODULE="high_tab.train"
 
 methods=({methods_array})
 METHOD=${{methods[$SLURM_ARRAY_TASK_ID]}}
@@ -95,7 +90,7 @@ fi
 source "$VENV_DIR/bin/activate"
 
 # Run python script
-"$PYTHON_EXE" "$PYTHON_SCRIPT" \\
+"$PYTHON_EXE" -m "$PYTHON_MODULE" \\
   --method "$METHOD" \\
   {data_source_arg} \\
   --model "$MODEL" \\
@@ -246,8 +241,7 @@ def write_script(
     with script_path.open("w") as f:
         f.write(dedent(slurm_text))
     os.chmod(script_path, 0o755)
-    print(f"Slurm script written to: {script_path}")
-    print("Submit with:\n  sbatch", script_path)
+    print("Submit with:\n  sbatch", script_path,"\n")
 
 
 # -----------------------------------------------------------------------------

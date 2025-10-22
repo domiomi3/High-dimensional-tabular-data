@@ -9,7 +9,7 @@ from sklearn.decomposition import PCA, KernelPCA
 from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import FeatureAgglomeration
 
-from .sand_layer import SANDProcessor
+from high_tab.preprocessors.sand_layer import SANDProcessor
 
 class TabPreprocessor(BaseEstimator, TransformerMixin):
 

@@ -13,13 +13,13 @@ import pandas as pd
 
 from sklearn.model_selection import train_test_split
 
-from preprocess import run_preprocessing_pipeline    
-from utils.data_preparation import prepare_data
-from utils.misc import add_method_args
-from utils.io import save_run, rename_run_file   
-from utils.hardware import get_device, memory_cleanup, set_hardware_config, set_seed
-from utils.loggers import setup_logger                  
-from models import make_model
+from high_tab.preprocess import run_preprocessing_pipeline    
+from high_tab.utils.data_preparation import prepare_data
+from high_tab.utils.misc import add_method_args
+from high_tab.utils.io import save_run, rename_run_file   
+from high_tab.utils.hardware import get_device, memory_cleanup, set_hardware_config, set_seed
+from high_tab.utils.loggers import setup_logger                  
+from high_tab.models import make_model
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +107,6 @@ def train(X, y, task, config) -> List[dict]:
                         "X_test %s  y_test %s",
                         X_train.shape, y_train.shape, X_test.shape, y_test.shape
                     )
-                    if X_train.shape[1] > 500:
-                        logger.warning("Number of features >500, "
-                                        "TabPFN may underperform.")
                     
                     model_name = "TabPFN-Wide" if model_key == "tabpfn_wide" else model.model_name 
                     logger.info("") 

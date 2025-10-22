@@ -2,6 +2,7 @@
 	path = external/tabrepo
 	url = https://github.com/autogluon/tabrepo.git
 	branch = main
-[submodule "TabPFN-Wide"]
-	path = TabPFN-Wide
-	url = https://github.com/pfeiferAI/TabPFN-Wide.git
+[submodule "external/tabpfnwide"]
+	path = external/tabpfnwide
+	url = https://github.com/domiomi3/TabPFN-Wide.git
+	branch = main

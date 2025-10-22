@@ -1,7 +1,7 @@
 from tabrepo.benchmark.models.ag.tabpfnv2.tabpfnv2_model import TabPFNV2Model, _patch_local_kdi_transformer, FixedSafePowerTransformer
 from autogluon.tabular.models.catboost.catboost_model import CatBoostModel
 
-from preprocessors.tab_preprocessor import TabPreprocessor
+from high_tab.preprocessors.tab_preprocessor import TabPreprocessor
 
 
 class _MSPBaseMixin:
@@ -164,8 +164,6 @@ class MSPWideModelMixin(_MSPBaseMixin):
             version='v2',
             download=True,
         )
-        #TODO: what is that?
-        wide_model.features_per_group = 1
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         wide_model.load_state_dict(checkpoint)
         
@@ -177,6 +175,33 @@ class MSPWideModelMixin(_MSPBaseMixin):
         self.model.fit(X, y, model=wide_model)
 
 
+class MSPCatBoostModelMixin(_MSPBaseMixin):
+    def _preprocess(self, X, is_train=False, y_train=None, **kwargs):
+        """Override to allow custom FS/DR methods."""
+        import pandas as pd
+
+        # skip second call during super()._fit()
+        if is_train and (self._estimator is not None):
+            return X
+
+        # extract hps for TabProcessor
+        hps = self._get_model_params(msp_class=True)
+        if "method_args" not in hps:
+            raise RuntimeError("method_args not passed to the model.")
+        config = dict(hps["method_args"])
+        random_state = config.pop("random_state", 44)
+
+        if is_train:
+            assert y_train is not None, "Preprocessing requires y_train when fitting"
+            if self._estimator is None:
+                self._estimator = TabPreprocessor(random_state, **config).fit(X, y_train)
+        else:
+            if self._estimator is None:
+                raise RuntimeError("TabProcessor's estimator not fitted.")
+
+        X = pd.DataFrame(self._estimator.transform(X))
+        return X
+
 # classes inheriting from the original base model will have their methods overridden by the mixin class
 class TabPFNV2MSPModel(MSPDefaultModelMixin, TabPFNV2Model):
     pass
@@ -184,5 +209,5 @@ class TabPFNV2MSPModel(MSPDefaultModelMixin, TabPFNV2Model):
 class TabPFNWideMSPModel(MSPWideModelMixin, TabPFNV2Model):
     pass
 
-class CatBoostMSPModel(MSPDefaultModelMixin, CatBoostModel):
+class CatBoostMSPModel(MSPCatBoostModelMixin, CatBoostModel):
     pass

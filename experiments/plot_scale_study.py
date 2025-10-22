@@ -18,13 +18,14 @@ Example:
 from __future__ import annotations
 import argparse
 import re
-from pathlib import Path
-from typing import Any, Dict, Optional, List
 
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FixedLocator
 import matplotlib.colors as mcolors
+
+from pathlib import Path
+from typing import Any, Dict, Optional, List
+from matplotlib.ticker import FixedLocator
 
 try:
     import yaml  # type: ignore

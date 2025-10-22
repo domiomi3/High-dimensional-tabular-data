@@ -180,9 +180,6 @@ results_old/
 
 experiments/results/
 experiments/slurm_logs/
-external/
-tabrepo/
-tabrepo
 _OLD
 experiments/
 experiments/slurm_scripts/
@@ -199,6 +196,3 @@ AutogluonModels/
 .gitmodules
 *.ipynb
 *.csv
-TabPFN-Wide/
-TabPFN-Wide
-TabPFN-Wide/*

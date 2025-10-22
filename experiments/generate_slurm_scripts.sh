@@ -13,7 +13,7 @@
 #   ./generate_slurm_scripts.sh "tabpfnv2_tab catboost_tab" all "kbest_fs random_fs" -- --num_features 123 --seed 324
 #   ./generate_slurm_scripts.sh all all all -g final -c -- --fs_ratio 0.6
 #   ./generate_slurm_scripts.sh "tabpfnv2_tab" "hiva 363697" all -t -g debug -r 20241229_143000 -- --log_level DEBUG
-#   ./generate_slurm_scripts.sh "tabpfnv2_tab" "csv:/path/to/data.csv" all -g csv_test
+#   ./generate_slurm_scripts.sh "tabpfnv2_tab" "csv:/path/to/data.csv" all -g csv_test -- --num_gpus 1 --num_cpus 4
 #
 set -euo pipefail
 

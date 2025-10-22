@@ -10,7 +10,7 @@ for name in ("autogluon", "autogluon.core", "autogluon.features"):
 from autogluon.features.generators import AutoMLPipelineFeatureGenerator
 from autogluon.core.data import LabelCleaner
 
-from preprocessors.tab_preprocessor import TabPreprocessor
+from high_tab.preprocessors.tab_preprocessor import TabPreprocessor
 
 _METHOD_FULLNAME = {
     "random_fs":    "Random selection",
