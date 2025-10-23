@@ -18,7 +18,12 @@ class _MSPBaseMixin:
         return params
 
     def _preprocess(self, X, is_train=False, y_train=None, **kwargs):
-        """Override to allow custom FS/DR methods."""
+        """
+        Override to allow custom FS/DR methods.
+        is_train defaulting to False allows the models to only transform the X 
+        during inference. Requires the parent's fit() to call preprocess() with 
+        is_train=True arguments. 
+        """
         import pandas as pd
 
         # skip second call during super()._fit()
@@ -26,7 +31,7 @@ class _MSPBaseMixin:
             return X
 
         # default preprocessing 
-        X = super()._preprocess(X, is_train=is_train, **kwargs)
+        X_sup_preprocessed = super()._preprocess(X, is_train=is_train, **kwargs)
 
         # extract hps for TabProcessor
         hps = self._get_model_params(msp_class=True)
@@ -38,13 +43,13 @@ class _MSPBaseMixin:
         if is_train:
             assert y_train is not None, "Preprocessing requires y_train when fitting"
             if self._estimator is None:
-                self._estimator = TabPreprocessor(random_state, **config).fit(X, y_train)
+                self._estimator = TabPreprocessor(random_state, **config).fit(X_sup_preprocessed, y_train)
         else:
             if self._estimator is None:
                 raise RuntimeError("TabProcessor's estimator not fitted.")
-
-        X = pd.DataFrame(self._estimator.transform(X))
-        return X
+        # breakpoint()
+        X_preprocessed = pd.DataFrame(self._estimator.transform(X_sup_preprocessed))
+        return X_preprocessed
 
     # template method: do not override this in subclasses
     def _fit(self, X, y, **kwargs):
@@ -59,6 +64,11 @@ class _MSPBaseMixin:
     def _preprocess_nonadaptive(self, X, **kwargs):
         """Override so it doesn't throw an error when self.features differ from X.columns."""
         return X
+
+    #TODO: how to do regression?
+    # def _predict_proba(self, X ,y, **kwargs):
+    #     X_preprocessed = self.preprocess(X, is_train=False)
+    #     return super()._predict_proba(X=X_preprocessed, y=y, **kwargs)
     
 # uses the default hook
 class MSPDefaultModelMixin(_MSPBaseMixin):
@@ -154,7 +164,8 @@ class MSPWideModelMixin(_MSPBaseMixin):
             hps["n_estimators"] = n_ensemble_repeats
         
          # load the weights of the pretrained model (not fitted)
-        checkpoint_path = f"TabPFN-Wide/models/TabPFN-Wide-8k_submission.pt"
+         #TODO: make it an attribute
+        checkpoint_path = f"external/tabpfnwide/models/TabPFN-Wide-8k_submission.pt"
 
         wide_model, _, _ = load_model_criterion_config(
             model_path=None,
@@ -174,34 +185,6 @@ class MSPWideModelMixin(_MSPBaseMixin):
         setattr(TabPFNClassifier, 'fit', fit)
         self.model.fit(X, y, model=wide_model)
 
-
-class MSPCatBoostModelMixin(_MSPBaseMixin):
-    def _preprocess(self, X, is_train=False, y_train=None, **kwargs):
-        """Override to allow custom FS/DR methods."""
-        import pandas as pd
-
-        # skip second call during super()._fit()
-        if is_train and (self._estimator is not None):
-            return X
-
-        # extract hps for TabProcessor
-        hps = self._get_model_params(msp_class=True)
-        if "method_args" not in hps:
-            raise RuntimeError("method_args not passed to the model.")
-        config = dict(hps["method_args"])
-        random_state = config.pop("random_state", 44)
-
-        if is_train:
-            assert y_train is not None, "Preprocessing requires y_train when fitting"
-            if self._estimator is None:
-                self._estimator = TabPreprocessor(random_state, **config).fit(X, y_train)
-        else:
-            if self._estimator is None:
-                raise RuntimeError("TabProcessor's estimator not fitted.")
-
-        X = pd.DataFrame(self._estimator.transform(X))
-        return X
-
 # classes inheriting from the original base model will have their methods overridden by the mixin class
 class TabPFNV2MSPModel(MSPDefaultModelMixin, TabPFNV2Model):
     pass
@@ -209,5 +192,5 @@ class TabPFNV2MSPModel(MSPDefaultModelMixin, TabPFNV2Model):
 class TabPFNWideMSPModel(MSPWideModelMixin, TabPFNV2Model):
     pass
 
-class CatBoostMSPModel(MSPCatBoostModelMixin, CatBoostModel):
+class CatBoostMSPModel(MSPDefaultModelMixin, CatBoostModel):
     pass

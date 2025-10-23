@@ -111,6 +111,22 @@ if [[ "$SEEN_DASHDASH" == true ]]; then
   while [[ $# -gt 0 ]]; do FORWARD_ARGS+=("$1"); shift; done
 fi
 
+present=false
+for tok in "${FORWARD_ARGS[@]:-}"; do
+  if [[ "$tok" == "--num_gpus" || "$tok" == --num_gpus=* ]]; then present=true; break; fi
+done
+if [[ "$present" == false ]]; then
+  FORWARD_ARGS+=("--num_gpus" "1")
+fi
+
+present=false
+for tok in "${FORWARD_ARGS[@]:-}"; do
+  if [[ "$tok" == "--num_cpus" || "$tok" == --num_cpus=* ]]; then present=true; break; fi
+done
+if [[ "$present" == false ]]; then
+  FORWARD_ARGS+=("--num_cpus" "4")
+fi
+
 # ---------- check positionals ----------
 MODELS_ARG="${POSITIONALS[0]:-all}"
 DATASETS_ARG="${POSITIONALS[1]:-all}"

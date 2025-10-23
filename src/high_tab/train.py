@@ -234,10 +234,9 @@ if __name__ == "__main__":
     # experiment type
     parser.add_argument("--method", nargs="+", default=["random_fs"],
                     choices = ALL_METHODS, help="Sklearn method/combination of methods.")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--openml_id", type=str, 
+    parser.add_argument("--openml_id", type=str, default=None,
                     help="OpenML task ID or dataset name.")
-    group.add_argument("--csv_path", type=str, 
+    parser.add_argument("--csv_path", type=str, default=None,
                    help="Path to .csv with data.")
     parser.add_argument("--model", default="tabpfnv2_tab",
                   choices=["tabpfnv2_org", "tabpfn_wide", "tabpfnv2_tab", "catboost_tab", "realmlp_tab"],
@@ -275,6 +274,14 @@ if __name__ == "__main__":
                         help="For the SelectFromModel method; number of randomized decision trees.")
 
     args = parser.parse_args()
+
+    # data source
+    if args.csv_path and args.openml_id:
+        logger.warning("--csv_path and --openml_id both provided; using CSV and ignoring OpenML.")
+        args.openml_id = None
+    if not args.csv_path and not args.openml_id:
+        args.openml_id = "363620"
+    
     config = vars(args)
     if "all" in config["method"]:
         config["method"] = ALL_METHODS

@@ -1,4 +1,5 @@
 import logging
+import pandas as pd
 
 from typing import Any, Dict
 
@@ -23,6 +24,22 @@ _METHOD_FULLNAME = {
     "kpca_dr":      "Kernel PCA",
     "sand_fs":      "SAND layer"
 }
+
+def _stringify_cats_with_nans(df: pd.DataFrame, missing_token="NaN"):
+    # Only inspect columns CatBoost will treat as categorical (object/category)
+    cat_cols = df.select_dtypes(include=["object", "category"]).columns
+    cols_with_nan = [c for c in cat_cols if df[c].isna().any()]
+    if not cols_with_nan:
+        return df
+    for c in cols_with_nan:
+        s = df[c]
+        if pd.api.types.is_categorical_dtype(s):
+            s = s.cat.add_categories([missing_token]).fillna(missing_token)
+        else:
+            s = s.fillna(missing_token)
+        df[c] = s.astype(str)  # convert only the touched columns to string
+    return df
+
 
 def log_metadata(config: Dict[str, Any]) -> None:
     method = config["method"]
@@ -85,6 +102,11 @@ def run_preprocessing_pipeline(
         label_cleaner.transform(y_train),
     )
     X_test, y_test = feature_generator.transform(X_test), label_cleaner.transform(y_test)
+
+    # stringify colu
+    if config["model"] == "catboost_tab":
+        X_train = _stringify_cats_with_nans(X_train)
+        X_test  = _stringify_cats_with_nans(X_test)
 
     # feature dimensionality reduction/selection
     if preprocessing == "model-agnostic":

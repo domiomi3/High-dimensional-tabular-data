@@ -22,7 +22,7 @@ source .venv/bin/activate
 Create slurm script for the desired OpenML task/dataset, TabArena model, and sklearn method and submit the job:
 ```
 python experiments/generate_slurm_script.py \
---openml_id task-id/dataset-name \
+--openml_id task-id/dataset-name OR --csv_path path.csv \
 --model model-name
 --methods all/method-name/method-list  \
 --exp_group exp-name \
@@ -31,7 +31,7 @@ python experiments/generate_slurm_script.py \
 or run the training script directly:
 ```
 python src/train.py \
---openml_id task-id \
+--openml_id task-id OR --csv_path path.csv \
 --model model-name
 --methods all/method-name/method-list \
 --exp_group exp-name \
@@ -39,17 +39,18 @@ python src/train.py \
 
 **exp-name** is directory created under experiments/results/ 
 
-Task IDs:
+TabArena high-dimensional datasets task IDs:
 ```
-QSAR-TID-11: 363697 (default)
-Bioresponse: 363620
+Bioresponse: 363620 (default)
 hiva: 363677 
+QSAR-TID-11: 363697 
 ```
 
 The results are saved to .csv file along with config.yaml under the experiments/results/dataset-name/model-name/method-name directory.
 
 
 # TabPFN-Wide
-After installing TabPFN-Wide, please fix the import error "ModuleNotFoundError: No module named 'tabpfn.model.attention.full_attention'; 'tabpfn.model.attention' is not a package" by changing the path to tabpfn.architectures.base.attention
+Installed a forked version of TabPFN-Wide so that it's compatible with TabPFN version 2.2.1.
 
-+ line 45 in patches.py from device_=self.device_ to devices_=self.devices_
+# TabRepo
+Installed a forked version of TabRepo so the internal preprocessing works (added is_train=True).

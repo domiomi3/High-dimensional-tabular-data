@@ -19,7 +19,8 @@ DEF_PARTITION = "mlhiwidlc_gpu-rtx2080"
 # Hardcoded wall times (auto-applied when 'original' present)
 ORIGINAL_WALLTIME = "14:00:00"
 OTHER_WALLTIME = "10:00:00"
-DRYRUN_WALLTIME = "01:30:00"
+DRYRUN_WALLTIME = "2:00:00"
+SAND_WALLTIME = "24:00:00"
 
 from high_tab.utils.io import abbrev_methods
 from high_tab.utils.data_preparation import load_dataset
@@ -338,17 +339,23 @@ def main() -> None:
     if args.dry_run:
         time_original = DRYRUN_WALLTIME
         time_other = DRYRUN_WALLTIME
+        time_sand = DRYRUN_WALLTIME
     else:
         time_original = ORIGINAL_WALLTIME
         time_other = OTHER_WALLTIME
+        time_sand = SAND_WALLTIME
 
-    # Prepare job groups (optional split when 'original' is present)
+    # Prepare job groups: split out 'original' and 'sand_fs' into their own scripts
     jobs: List[tuple[List[str], str]] = []
-    if "original" in methods and len(methods) > 1:
+    remaining = methods.copy()
+    if "original" in remaining:
         jobs.append((["original"], time_original))
-        jobs.append(([m for m in methods if m != "original"], time_other))
-    else:
-        jobs.append((methods, time_original if methods == ["original"] else time_other))
+        remaining = [m for m in remaining if m != "original"]
+    if "sand_fs" in remaining:
+        jobs.append((["sand_fs"], time_sand))
+        remaining = [m for m in remaining if m != "sand_fs"]
+    if remaining:
+        jobs.append((remaining, time_other))
 
     # Emit scripts
     for methods_list, t in jobs:
