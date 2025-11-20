@@ -61,6 +61,9 @@ hiva: 363677
 QSAR-TID-11: 363697 
 ```
 
+### CSV data
+[QSAR-oral-toxicity](https://archive.ics.uci.edu/dataset/508/qsar+oral+toxicity) - columns names added; delimiter changed from ";" to ","
+
 The results are saved to .csv file along with config.yaml under the experiments/results/exp-group/run-id/dataset-name/model-name/method-name directory.
 
 

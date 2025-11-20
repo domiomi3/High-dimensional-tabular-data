@@ -40,6 +40,7 @@ def train(X, y, task, config) -> List[dict]:
     device = config["device"] if config["device"] else get_device() 
     num_gpus = config["num_gpus"]
     num_cpus = config["num_cpus"]
+    num_k_folds = config["num_k_folds"]
 
     results: List[dict] = []
     fold_times: List[float] = []
@@ -97,6 +98,7 @@ def train(X, y, task, config) -> List[dict]:
                     device=device,
                     num_gpus=num_gpus,
                     num_cpus=num_cpus,
+                    num_k_folds=num_k_folds,
                     **extra_args
                 )
 
@@ -217,7 +219,7 @@ if __name__ == "__main__":
     ALL_METHODS = [
         "original", "random_fs", "variance_fs", "tree_fs", "kbest_fs",
         "pca_dr", "random_dr", "agglo_dr", "kpca_dr", "kbest+pca",
-        "sand_fs"
+        "sand_fs", "lasso_fs"
     ]
 
     TABARENA_MODELS = {
@@ -238,6 +240,8 @@ if __name__ == "__main__":
                     help="OpenML task ID or dataset name.")
     parser.add_argument("--csv_path", type=str, default=None,
                    help="Path to .csv with data.")
+    parser.add_argument("--target", type=str, default=None,
+                   help="Target column namefor the .csv data.")
     parser.add_argument("--model", default="tabpfnv2_tab",
                   choices=["tabpfnv2_org", "tabpfn_wide", "tabpfnv2_tab", "catboost_tab", "realmlp_tab"],
                   help="TabArena model.")
@@ -263,7 +267,11 @@ if __name__ == "__main__":
     parser.add_argument("--unique_save", 
                         action="store_true", 
                         help="Whether to save experiment results under unique filenames.")
-    # method HPs
+    # method and model HPs
+    parser.add_argument("--num_estimators", type=int, default=8,
+                        help="Number of TabPFN estimators.")
+    parser.add_argument("--num_k_folds", type=int, default=8,
+                        help="Number of k-folds for bagged ensembling.")
     parser.add_argument("--num_features", type=int, default=150,
                         help="Resulting feature dimension after applying the sklearn method.")
     parser.add_argument("--fs_ratio", type=float, default=0.75,

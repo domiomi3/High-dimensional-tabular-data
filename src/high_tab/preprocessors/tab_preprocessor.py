@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -8,6 +9,9 @@ from sklearn.ensemble import ExtraTreesRegressor, ExtraTreesClassifier
 from sklearn.decomposition import PCA, KernelPCA
 from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import FeatureAgglomeration
+from sklearn.linear_model import Lasso, LogisticRegression
+from sklearn.preprocessing import StandardScaler
+
 
 from high_tab.preprocessors.sand_layer import SANDProcessor
 
@@ -20,7 +24,6 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
         self._feature_names_out = None  # output feature names during fit
 
     def fit(self, X: pd.DataFrame, y=None):
-        X = pd.DataFrame(X)
         y = None if y is None else pd.Series(y)       
 
         config = self.config   
@@ -112,10 +115,40 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
                 num_features=config["num_features"], 
                 device=config["device"],
                 task_type=config["task_type"],
-                random_state=self.rand_state
+                random_state=self.rand_state,
+                model_type=config["model_type"]
             ).fit(X, y)
             self._feature_names_out = self._estimator.selected_cols_
+        elif method == "lasso_fs":
+            X_scaled = StandardScaler(with_mean=True).fit_transform(X) #only for fitting
+            X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index) 
+            tol = 1e-3       
+            max_iter = 3000
             
+            if config["task_type"] == "regression":
+                # heuristics: alpha_max = (1/n) * max |X^T y| on standardized X
+                n = X_scaled.shape[0]
+                y_center = y - np.mean(y) if y is not None else y
+                alpha_max = (np.abs(X_scaled.T @ y_center).max() / n) if y is not None else 1.0
+                alpha = config.get("alpha", 0.1 * alpha_max)  # 10% of alpha_max is a good starting point
+                base = Lasso(alpha=alpha, tol=tol, max_iter=max_iter, warm_start=True)
+            else:  # classification
+                C = 1.0  # smaller C => stronger sparsity
+                base = LogisticRegression(
+                    penalty="l1", solver="saga", C=C, tol=tol, max_iter=max_iter,
+                    warm_start=True
+                )
+            base.fit(X_scaled, y)
+
+            self._estimator = SelectFromModel(
+                estimator=base,
+                threshold=0,  # keep any strictly non-zero coef
+                max_features=config["num_features"],
+                prefit=True
+            )
+            mask = self._estimator.get_support()
+            self._feature_names_out = X.columns[mask].tolist()
+
         else:
             raise ValueError(f"Unknown method {method}")
             

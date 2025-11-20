@@ -22,22 +22,22 @@ _METHOD_FULLNAME = {
     "random_dr":    "Gaussian random projection",
     "agglo_dr":     "Feature agglomeration",
     "kpca_dr":      "Kernel PCA",
-    "sand_fs":      "SAND layer"
+    "sand_fs":      "SAND layer",
+    "lasso_fs":      "L1 regularization (Lasso)",
 }
 
-def _stringify_cats_with_nans(df: pd.DataFrame, missing_token="NaN"):
-    # Only inspect columns CatBoost will treat as categorical (object/category)
-    cat_cols = df.select_dtypes(include=["object", "category"]).columns
-    cols_with_nan = [c for c in cat_cols if df[c].isna().any()]
-    if not cols_with_nan:
-        return df
-    for c in cols_with_nan:
-        s = df[c]
-        if pd.api.types.is_categorical_dtype(s):
-            s = s.cat.add_categories([missing_token]).fillna(missing_token)
-        else:
-            s = s.fillna(missing_token)
-        df[c] = s.astype(str)  # convert only the touched columns to string
+
+def _normalize_type(df: pd.DataFrame, missing="NaN"):
+    df = df.copy()
+    cat_dtype_cols = df.select_dtypes(include=["category"]).columns
+    if len(cat_dtype_cols):
+        # catboost creates cat_features based on object type not pd's categroy
+        df[cat_dtype_cols] = df[cat_dtype_cols].astype(object) 
+    obj_cols = df.select_dtypes(include=["object"]).columns
+    for c in obj_cols:
+        if df[c].isna().any():
+            df[c] = df[c].fillna(missing) #convert NaN to str
+        df[c] = df[c].astype(str)
     return df
 
 
@@ -82,6 +82,8 @@ def log_metadata(config: Dict[str, Any]) -> None:
             logger.info("Kernel: RBF")
     elif method == "sand_fs":
         logger.info("HPs: Number of features: %d", num_feat)
+    elif method == "lasso_fs":
+            logger.info("HPs: Number of features: %d", num_feat)
     else:
         logger.warning("Unknown preprocessing method %s", method)
 
@@ -103,10 +105,10 @@ def run_preprocessing_pipeline(
     )
     X_test, y_test = feature_generator.transform(X_test), label_cleaner.transform(y_test)
 
-    # stringify colu
+    # stringify cols with nans + chance category type to object
     if config["model"] == "catboost_tab":
-        X_train = _stringify_cats_with_nans(X_train)
-        X_test  = _stringify_cats_with_nans(X_test)
+        X_train = _normalize_type(X_train)
+        X_test  = _normalize_type(X_test)
 
     # feature dimensionality reduction/selection
     if preprocessing == "model-agnostic":

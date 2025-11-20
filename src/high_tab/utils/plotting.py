@@ -2,8 +2,21 @@ import os
 import pandas as pd
 import hashlib
 import seaborn as sns
-
+from typing import Dict, Optional
 from matplotlib.colors import to_hex
+
+
+DISPLAY_NAME_MAP = {
+    "tabpfnv2_tab_map": "TabPFNv2 (MAP)",
+    "tabpfnv2_tab": "TabPFNv2",
+    "tabpfnv2_org": "TabPFNv2 Original",
+    "catboost_tab_cpu": "CatBoost (8 CPU)",
+    "catboost_tab": "CatBoost",
+    "tabarena_sota": "TabArena SOTA",
+    "tabpfn_wide": "TabPFN-Wide",
+}
+DEFAULT_PALETTE = "colorblind"
+DEFAULT_EXTRA_POOL = 10
 
 
 def load_results(rootdir, requested_columns=[]):
@@ -52,53 +65,81 @@ def merge_results(root_dirs):
     
     return comb_results, dataset, metric
 
-def build_model_color_map(display_name_map, palette="colorblind", overrides=None):
-    """
-    Create a stable mapping: model_key -> hex color using a Seaborn palette.
+# --- Display-name helper ------------------------------------------------------
 
-    Stability comes from the insertion order of `display_name_map` (Python 3.7+ preserves it).
-    If you always define the models in the same order, colors stay fixed across runs.
+def get_display_name(model_key: str, display_name_map: Optional[Dict[str, str]] = None) -> str:
+    """
+    Return a human-friendly name for a model key. Falls back to key if unknown.
+    """
+    base = display_name_map or DISPLAY_NAME_MAP
+    return base.get(model_key, model_key)
+
+
+# --- Color mapping: fixed + deterministic fallback ---------------------------
+
+def build_model_color_map(
+    display_name_map: Optional[Dict[str, str]] = None,
+    palette=DEFAULT_PALETTE,
+    overrides: Optional[Dict[str, str]] = None,
+    extra_pool: int = DEFAULT_EXTRA_POOL,
+) -> Dict[str, str]:
+    """
+    Build a FIXED color map for known models (keys from display_name_map),
+    drawing from ONE Seaborn palette. These colors never change across plots.
+
+    Unknown models are NOT added here—use color_for_model() for those.
 
     Args:
-        display_name_map (dict): {model_key: display_name}. Keys define color order.
-        palette (str | list): Seaborn palette name or color list.
-        overrides (dict | None): Optional {model_key: "#RRGGBB"} to force specific colors.
+        display_name_map: {model_key: display_name}. If None, uses DISPLAY_NAME_MAP.
+        palette: Seaborn palette name or explicit color list.
+        overrides: Optional {model_key: "#RRGGBB"} to force specific colors.
+        extra_pool: Also allocate this many additional palette colors so unknown
+                    models can be colored from the SAME palette without collision.
 
     Returns:
-        dict: {model_key: "#RRGGBB"}
+        {model_key: "#RRGGBB"} for the fixed base models only.
     """
     overrides = overrides or {}
-    keys = list(display_name_map.keys())
-    pal = sns.color_palette(palette, n_colors=len(keys))
+    base = display_name_map or DISPLAY_NAME_MAP
 
-    color_map = {}
-    j = 0
-    for i, k in enumerate(keys):
-        if k in overrides:
-            color_map[k] = overrides[k]
-        else:
-            # If overrides reduced available palette positions, keep assigning sequentially
-            color_map[k] = to_hex(pal[j % len(pal)])
-            j += 1
+    base_keys = list(base.keys())
+    # One palette for both fixed + future colors (ensures same scheme).
+    pal = sns.color_palette(palette, n_colors=len(base_keys) + max(0, extra_pool))
+
+    color_map: Dict[str, str] = {}
+    for i, k in enumerate(base_keys):
+        color_map[k] = overrides.get(k, to_hex(pal[i]))
     return color_map
 
 
-def color_for_model(model_key, base_color_map, palette="colorblind", cycle_len=12):
+def color_for_model(
+    model_key: str,
+    base_color_map: Dict[str, str],
+    palette=DEFAULT_PALETTE,
+    extra_pool: int = DEFAULT_EXTRA_POOL,
+) -> str:
     """
-    Deterministic color for models not present in `base_color_map`.
-    Uses MD5 of the key to pick a stable index in a small palette.
+    Stable color for ANY model key.
+
+    - If the key is in base_color_map, return its fixed color.
+    - Otherwise, pick a deterministic color from the SAME palette,
+      using an MD5 hash, ensuring no collision with fixed colors.
 
     Args:
-        model_key (str): The model identifier.
-        base_color_map (dict): Known {model_key: "#RRGGBB"}.
-        palette (str | list): Seaborn palette name or color list for fallback.
-        cycle_len (int): Size of the fallback palette.
+        model_key: The model identifier.
+        base_color_map: Fixed colors returned by build_model_color_map().
+        palette: Seaborn palette name or explicit color list (must match the one used above).
+        extra_pool: Size of the fallback pool; should be >= number of possible unknown models.
 
     Returns:
-        str: "#RRGGBB" color.
+        "#RRGGBB" color string.
     """
     if model_key in base_color_map:
         return base_color_map[model_key]
-    pal = sns.color_palette(palette, n_colors=cycle_len)
-    idx = int(hashlib.md5(model_key.encode("utf-8")).hexdigest(), 16) % cycle_len
-    return to_hex(pal[idx])
+
+    fixed_n = len(base_color_map)
+    pal = sns.color_palette(palette, n_colors=fixed_n + max(1, extra_pool))
+
+    # Deterministic index into the fallback segment [fixed_n, fixed_n + extra_pool)
+    idx = int(hashlib.md5(model_key.encode("utf-8")).hexdigest(), 16) % max(1, extra_pool)
+    return to_hex(pal[fixed_n + idx])

@@ -19,11 +19,13 @@ class SANDProcessor:
     Trains a SAND layer for preprocessed inputs with TabPFN gradient signal.
     For preprocessing, use selected_columns_ (similar to random_fs method).
     """
-    def __init__(self, num_features=150, random_state=44, device=None,
-                 finetune_epochs=5, n_estimators_ft=1, task_type=None, 
+    def __init__(self, num_features=150, model_type="tabpfnv2_tab", random_state=44, 
+                 device=None, finetune_epochs=5, n_estimators_ft=1, task_type=None, 
                  sigma=1.5, lr=1.5e-6, val_ratio=0.3, meta_batch_size=1,
                  max_data_size=256):
         self.K = int(num_features)
+        self.model_type = model_type
+        self.wide_model = None
         self.random_state = random_state
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.epochs = finetune_epochs
@@ -80,7 +82,7 @@ class SANDProcessor:
         return X_np, y_np
 
 
-    def _setup_tabpfn(self):
+    def _setup_tabpfn_model(self):
         # for feature dim preserving
         inference_config = {
             "PREPROCESS_TRANSFORMS": [
@@ -113,7 +115,31 @@ class SANDProcessor:
         predictor = model_class(**model_config, fit_mode="batched", differentiable_input=False)
         if self.classification_task:
             predictor._initialize_model_variables()
+        
+        if self.model_type=="tabpfn_wide":
+            import types
+            from tabpfn.model.loading import load_model_criterion_config, resolve_model_path
+            from tabpfnwide.patches import fit, fit_from_preprocessed
+            
+            checkpoint_path = f"external/tabpfnwide/models/TabPFN-Wide-8k_submission.pt"
+            wide_model, _, _ = load_model_criterion_config(
+                model_path=None,
+                check_bar_distribution_criterion=False,
+                cache_trainset_representation=False,
+                which='classifier',
+                version='v2',
+                download=True,
+            )
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
+            wide_model.load_state_dict(checkpoint)
+            wide_model.to(self.device)
+            self.wide_model = wide_model
+
+            predictor.fit = types.MethodType(fit, predictor)
+            predictor.fit_from_preprocessed = types.MethodType(fit_from_preprocessed, predictor)
+
         return predictor
+
 
     @staticmethod
     def _make_stable_splitter(test_size, random_state, use_stratify: bool, eps=1e-6):
@@ -183,7 +209,7 @@ class SANDProcessor:
     def fit(self, X: pd.DataFrame, y: pd.Series, **kwargs):
         """SAND layer training for FS with frozen TabPFN predictor (classifier or regressor)."""
 
-        predictor = self._setup_tabpfn() 
+        predictor = self._setup_tabpfn_model() 
 
         X_np, y_np = self._to_tabpfn_arrays(X, y, self.task_type) # to numpy arrays
         
@@ -196,7 +222,7 @@ class SANDProcessor:
 
         # workaround for issue with non-stratified chunks when using max_data_size in get_preprocessed_datasets
         training_chunks = SANDProcessor._get_stratified_sets(
-            X_np, y_np, max_data_size=256, random_state=self.random_state, 
+            X_np, y_np, max_data_size=self.max_data_size, random_state=self.random_state, 
             use_stratify=self.classification_task
         )
         training_datasets = [
@@ -210,10 +236,6 @@ class SANDProcessor:
             collate_fn=meta_dataset_collator,
         )
 
-        # freeze tabpfn
-        for p in predictor.model_.parameters(): p.requires_grad = False
-        predictor.model_.eval()
-  
         sand_model, optimizer = None, None # lazy init
         loss_log = []
         grad_norm_log = []
@@ -265,9 +287,17 @@ class SANDProcessor:
                     X_test_sand = [sand_model(x.to(self.device), training=False) for x in X_tests_preprocessed]
 
                     with torch.no_grad():
+                        fit_kwargs = {'no_refit': True}
+                        if self.model_type == 'tabpfn_wide':
+                            fit_kwargs['model'] = self.wide_model # for tabpfn_wide
+
                         predictor.fit_from_preprocessed(
-                            X_train_sand, y_trains_preprocessed, cat_ixs, confs, no_refit=True
+                            X_train_sand, y_trains_preprocessed, cat_ixs, confs, **fit_kwargs
                         )
+                    
+                    # freeze model
+                    for p in predictor.model_.parameters(): p.requires_grad = False
+                    predictor.model_.eval()
 
                     if self.classification_task:
                         logits = predictor.forward(X_test_sand, return_logits=True)

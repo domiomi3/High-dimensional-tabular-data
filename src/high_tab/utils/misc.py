@@ -8,7 +8,9 @@ def add_method_args(config):
         "num_features": config["num_features"], 
         "random_state": config["seed"],
         "task_type": config["task_type"],
-        "device": config["device"]
+        "device": config["device"],
+        "model_type": config["model"],
+        "num_estimators": config["num_estimators"]
     }
     if method_args["method"] == "kbest+pca":
         method_hps["num_kbest_features"] = config["num_kbest_features"]

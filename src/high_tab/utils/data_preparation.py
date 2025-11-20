@@ -39,7 +39,8 @@ def prepare_data(config):
         return X, y, task
     
     if config["csv_path"]:
-        target = 'Population' # TODO: hardcoded now, need to pass it as arg
+        target = config["target"] 
+        # 'Population' # TODO: hardcoded now, need to pass it as arg
         df = pd.read_csv(config["csv_path"], low_memory=False, na_values=['NaN', "nan", "na", 'null', '', '?'])
         y = df[target]
         X = df.drop(target,axis=1) 

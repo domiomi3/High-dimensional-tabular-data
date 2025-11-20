@@ -35,6 +35,7 @@ class TabArenaModel(TabModel):
         device: str,
         num_gpus: int,
         num_cpus: int,
+        num_k_folds: int,
         model_checkpoints_dir: str,
         **kwargs,
     ):
@@ -50,6 +51,7 @@ class TabArenaModel(TabModel):
         self.preprocessing = preprocessing
         self.num_gpus = num_gpus
         self.num_cpus = num_cpus
+        self.num_k_folds = num_k_folds
         self.random_state = random_state
         self.cross_validation_bagging = True
         self.model_checkpoints_dir = model_checkpoints_dir
@@ -70,7 +72,7 @@ class TabArenaModel(TabModel):
             # pass arguments for FS/DR method
             if self.kwargs["method_args"] and self.cross_validation_bagging:
                 model_config["hyperparameters"].update(**self.kwargs)
-        else:
+        else: #TODO: fix this, only msp allowed
             model_cls = meta.model_cls
         
         base_config = {k: v for k, v in model_config.items() if k != "ag_args_ensemble"}
@@ -92,7 +94,7 @@ class TabArenaModel(TabModel):
             self.model.params.update({
                 "fold_fitting_strategy": "sequential_local", 
             })
-            self.model = self.model.fit(X=X, y=y, k_fold=8) # already stores the oof preds
+            self.model = self.model.fit(X=X, y=y, k_fold=self.num_k_folds) # already stores the oof preds
 
             score = self.model.score_with_oof(y=y)
             self.val_score = -score if self.eval_metric in ["root_mean_squared_error", "log_loss"] else score # AG always maximizes

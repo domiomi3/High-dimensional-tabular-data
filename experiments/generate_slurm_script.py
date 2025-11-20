@@ -14,7 +14,7 @@ from typing import List
 WORK_DIR = "/work/dlclarge2/matusd-toy_example"
 VENV_DIR = f"{WORK_DIR}/.venv"
 PYTHON_EXE = f"{VENV_DIR}/bin/python"
-DEF_PARTITION = "mlhiwidlc_gpu-rtx2080"
+DEF_PARTITION = "mldlc2_gpu-l40s"
 
 # Hardcoded wall times (auto-applied when 'original' present)
 ORIGINAL_WALLTIME = "14:00:00"
@@ -30,7 +30,7 @@ from high_tab.utils.data_preparation import load_dataset
 # -----------------------------------------------------------------------------
 ALLOWED_METHODS = (
     "original random_fs variance_fs tree_fs kbest_fs "
-    "pca_dr random_dr kpca_dr agglo_dr kbest+pca sand_fs" 
+    "pca_dr random_dr kpca_dr agglo_dr kbest+pca sand_fs lasso_fs" 
 ).split()
 
 # -----------------------------------------------------------------------------

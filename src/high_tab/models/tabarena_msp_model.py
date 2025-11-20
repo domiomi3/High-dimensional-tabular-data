@@ -9,7 +9,7 @@ class _MSPBaseMixin:
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._estimator = None
-
+        
     def _get_model_params(self, msp_class=False):
         """Override to avoid unexpected arguments in the parent class."""
         params = super()._get_model_params()
@@ -39,7 +39,7 @@ class _MSPBaseMixin:
             raise RuntimeError("method_args not passed to the model.")
         config = dict(hps["method_args"])
         random_state = config.pop("random_state", 44)
-
+        
         if is_train:
             assert y_train is not None, "Preprocessing requires y_train when fitting"
             if self._estimator is None:
@@ -79,6 +79,8 @@ class MSPWideModelMixin(_MSPBaseMixin):
     def _custom_fit(self, X, y, **kwargs):
         """Override to load a pretrained TabPFN-Wide model."""
         import torch 
+        import types
+
         from torch.cuda import is_available
         from tabpfn.model.loading import load_model_criterion_config, resolve_model_path
         from tabpfn import TabPFNClassifier
@@ -163,8 +165,15 @@ class MSPWideModelMixin(_MSPBaseMixin):
         if n_ensemble_repeats is not None:
             hps["n_estimators"] = n_ensemble_repeats
         
-         # load the weights of the pretrained model (not fitted)
-         #TODO: make it an attribute
+        # TODO: find a more elegant way
+        msp_hps = self._get_model_params(msp_class=True)
+        if "method_args" not in msp_hps:
+            raise RuntimeError("method_args not passed to the model.")
+        config = dict(msp_hps["method_args"])
+        num_estimators = config.pop("num_estimators", 8)
+        
+        # load the weights of the pretrained model (not fitted)
+        #TODO: make it an attribute
         checkpoint_path = f"external/tabpfnwide/models/TabPFN-Wide-8k_submission.pt"
 
         wide_model, _, _ = load_model_criterion_config(
@@ -179,10 +188,10 @@ class MSPWideModelMixin(_MSPBaseMixin):
         wide_model.load_state_dict(checkpoint)
         
         self.model = model_base(
-            n_estimators=8,
+            n_estimators=num_estimators,
             **hps
         )
-        setattr(TabPFNClassifier, 'fit', fit)
+        self.model.fit = types.MethodType(fit, self.model)
         self.model.fit(X, y, model=wide_model)
 
 # classes inheriting from the original base model will have their methods overridden by the mixin class
