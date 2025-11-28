@@ -1,5 +1,6 @@
-from tabrepo.benchmark.models.ag.tabpfnv2.tabpfnv2_model import TabPFNV2Model, _patch_local_kdi_transformer, FixedSafePowerTransformer
+from autogluon.tabular.models.tabpfnv2.tabpfnv2_model import TabPFNV2Model, FixedSafePowerTransformer # _patch_local_kdi_transformer
 from autogluon.tabular.models.catboost.catboost_model import CatBoostModel
+from tabarena.benchmark.models.ag.tabpfnv2_5.tabpfnv2_5_model import RealTabPFNv25Model
 
 from high_tab.preprocessors.tab_preprocessor import TabPreprocessor
 
@@ -47,7 +48,6 @@ class _MSPBaseMixin:
         else:
             if self._estimator is None:
                 raise RuntimeError("TabProcessor's estimator not fitted.")
-        # breakpoint()
         X_preprocessed = pd.DataFrame(self._estimator.transform(X_sup_preprocessed))
         return X_preprocessed
 
@@ -93,7 +93,7 @@ class MSPWideModelMixin(_MSPBaseMixin):
 
         # msp preprocessing
         X = self.preprocess(X, y_train=y, is_train=True)
-        _patch_local_kdi_transformer()
+        # _patch_local_kdi_transformer()
 
         is_classification = self.problem_type in ["binary", "multiclass"]
         if not is_classification: 
@@ -176,25 +176,32 @@ class MSPWideModelMixin(_MSPBaseMixin):
         #TODO: make it an attribute
         checkpoint_path = f"external/tabpfnwide/models/TabPFN-Wide-8k_submission.pt"
 
-        wide_model, _, _ = load_model_criterion_config(
-            model_path=None,
-            check_bar_distribution_criterion=False,
-            cache_trainset_representation=False,
-            which='classifier',
-            version='v2',
-            download=True,
-        )
+        wide_model = load_model_criterion_config(
+                model_path=None,
+                check_bar_distribution_criterion=False,
+                cache_trainset_representation=False,
+                which='classifier',
+                version='v2',
+                download_if_not_exists=True,
+        )[0][0]
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         wide_model.load_state_dict(checkpoint)
+        wide_model.to(device)
         
-        self.model = model_base(
-            n_estimators=num_estimators,
-            **hps
-        )
+        self.model = model_base()
+        self.model = self.model.create_default_for_version(version="v2", n_estimators=num_estimators, **hps)
+        
+        if is_classification and not hasattr(self.model, 'softmax_temperature_'):
+            self.model.softmax_temperature_ = self.model.softmax_temperature
+            self.model.tuned_classification_thresholds_ = None
+                           
         self.model.fit = types.MethodType(fit, self.model)
         self.model.fit(X, y, model=wide_model)
 
 # classes inheriting from the original base model will have their methods overridden by the mixin class
+class RealTabPFNv25ModelMSPModel(MSPDefaultModelMixin, RealTabPFNv25Model):
+    pass
+
 class TabPFNV2MSPModel(MSPDefaultModelMixin, TabPFNV2Model):
     pass
 
@@ -203,3 +210,5 @@ class TabPFNWideMSPModel(MSPWideModelMixin, TabPFNV2Model):
 
 class CatBoostMSPModel(MSPDefaultModelMixin, CatBoostModel):
     pass
+
+

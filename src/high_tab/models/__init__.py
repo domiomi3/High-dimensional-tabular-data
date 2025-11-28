@@ -5,7 +5,8 @@ from high_tab.models.base import TabModel
 
 _TABARENA_MODEL_REGISTRY = {
     "catboost_tab": ("CatBoost", "high_tab.models.tabarena_msp_model", "CatBoostMSPModel"),
-    "tabpfnv2_tab": ("TabPFNv2", "high_tab.models.tabarena_msp_model", "TabPFNV2MSPModel"),
+    "tabpfnv2_ag": ("TabPFNv2", "high_tab.models.tabarena_msp_model", "TabPFNV2MSPModel"),
+    "realtabpfn_tab": ("RealTabPFN-v2.5", "high_tab.models.tabarena_msp_model", "RealTabPFNv25ModelMSPModel"),
     "tabpfn_wide": ("TabPFNv2", "high_tab.models.tabarena_msp_model", "TabPFNWideMSPModel"),
 }
 

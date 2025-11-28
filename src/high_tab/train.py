@@ -3,6 +3,7 @@
 import argparse
 import logging
 import time
+import torch
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -41,6 +42,7 @@ def train(X, y, task, config) -> List[dict]:
     num_gpus = config["num_gpus"]
     num_cpus = config["num_cpus"]
     num_k_folds = config["num_k_folds"]
+    test_df_idx = config["test_df_idx"]
 
     results: List[dict] = []
     fold_times: List[float] = []
@@ -66,16 +68,21 @@ def train(X, y, task, config) -> List[dict]:
                     X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
                     X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
                 else:
+                    fold_seed = rep_seed + fold
+
                     # tODO: split based on repreat and fold
                       # Split based on repeat and fold with deterministic seed
-                    fold_seed = rep_seed + fold
-                    X_train, X_test, y_train, y_test = train_test_split(
-                        X, y, 
-                        test_size=0.33,  # adjust as needed
-                        random_state=fold_seed,
-                        stratify=y if task_type in ("binary", "multiclass") else None  # stratify for classification
-                    )
-                
+                    if test_df_idx is not None:
+                        X_train, y_train = X.iloc[:test_df_idx], y.iloc[:test_df_idx]
+                        X_test, y_test = X.iloc[test_df_idx:], y.iloc[test_df_idx:]
+                    else:
+                        X_train, X_test, y_train, y_test = train_test_split(
+                            X, y, 
+                            test_size=0.3,  # adjust as needed
+                            random_state=fold_seed,
+                            stratify=y if task_type in ("binary", "multiclass") else None  # stratify for classification
+                        )
+                    
                 # preprocess data (default preprocessing + optional FS/DR)
                 X_train, X_test, y_train, y_test = run_preprocessing_pipeline(
                     X_train, X_test, y_train, y_test,
@@ -187,7 +194,8 @@ def main(config):
         message="X does not have valid feature names.*", category=UserWarning)
 
     # get openml data
-    X, y, task = prepare_data(config)
+    X, y, task, test_df_idx = prepare_data(config)
+    config["test_df_idx"] = test_df_idx
     Path(config["results_dir"]).mkdir(parents=True, exist_ok=True)
 
     # train model with each method
@@ -219,13 +227,13 @@ if __name__ == "__main__":
     ALL_METHODS = [
         "original", "random_fs", "variance_fs", "tree_fs", "kbest_fs",
         "pca_dr", "random_dr", "agglo_dr", "kpca_dr", "kbest+pca",
-        "sand_fs", "lasso_fs"
+        "sand_fs", "lasso_fs", "tabpfn_fs"
     ]
 
     TABARENA_MODELS = {
-        "tabpfnv2_tab": "TabPFNv2", 
+        "tabpfnv2_ag": "TabPFNv2",
+        "realtabpfn_tab": "TabPFN-v2.5", 
         "catboost_tab": "CatBoost", 
-        "realmlp_tab": "RealMLP",
     }
 
     parser = argparse.ArgumentParser(
@@ -239,11 +247,13 @@ if __name__ == "__main__":
     parser.add_argument("--openml_id", type=str, default=None,
                     help="OpenML task ID or dataset name.")
     parser.add_argument("--csv_path", type=str, default=None,
-                   help="Path to .csv with data.")
+                   help="Path to .csv with (training) data.")
+    parser.add_argument("--test_csv_path", type=str, default=None,
+                   help="Path to .csv with test data.")
     parser.add_argument("--target", type=str, default=None,
                    help="Target column namefor the .csv data.")
-    parser.add_argument("--model", default="tabpfnv2_tab",
-                  choices=["tabpfnv2_org", "tabpfn_wide", "tabpfnv2_tab", "catboost_tab", "realmlp_tab"],
+    parser.add_argument("--model", default="tabpfnv2_ag",
+                  choices=["tabpfnv2_org", "tabpfn_wide", "tabpfnv2_ag", "catboost_tab", "realtabpfn_tab"],
                   help="TabArena model.")
     parser.add_argument("--preprocessing", default="model-specific", 
                         choices=["model-specific", "model-agnostic"], 

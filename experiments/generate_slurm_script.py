@@ -30,7 +30,7 @@ from high_tab.utils.data_preparation import load_dataset
 # -----------------------------------------------------------------------------
 ALLOWED_METHODS = (
     "original random_fs variance_fs tree_fs kbest_fs "
-    "pca_dr random_dr kpca_dr agglo_dr kbest+pca sand_fs lasso_fs" 
+    "pca_dr random_dr kpca_dr agglo_dr kbest+pca sand_fs lasso_fs tabpfn_fs" 
 ).split()
 
 # -----------------------------------------------------------------------------
@@ -213,8 +213,13 @@ def write_script(
     extra = "_test" if args.dry_run else ""
     script_base = f"{abbr}{extra}{script_suffix}"
     script_path = scripts_dir / f"{script_base}.sh"
-    array_line = "#SBATCH --array=0" if len(methods_list) == 1 else f"#SBATCH --array=0-{len(methods_list)-1}"
-
+    
+    if len(methods_list) == 1:
+        array_line = "#SBATCH --array=0"
+    else:
+        limit = "%4" if len(methods_list) > 4 else ""
+        array_line = f"#SBATCH --array=0-{len(methods_list)-1}{limit}"
+        
     slurm_text = SLURM_TEMPLATE.format(
         partition=args.partition,
         time=time_str,

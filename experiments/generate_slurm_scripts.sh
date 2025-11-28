@@ -28,7 +28,7 @@ declare -A DATASET_IDS=(
 )
 
 # canonical "all"
-ALL_MODELS=("tabpfnv2_tab" "catboost_tab" "tabpfn_wide")
+ALL_MODELS=("tabpfnv2_ag" "catboost_tab" "tabpfn_wide" "realtabpfn_tab")
 ALL_DATASETS=("bioresponse" "hiva" "qsar")
 
 # flags for the generator (these are *recognized* by your Python script)

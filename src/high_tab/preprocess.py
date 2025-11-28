@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-
+import torch
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,8 @@ _METHOD_FULLNAME = {
     "agglo_dr":     "Feature agglomeration",
     "kpca_dr":      "Kernel PCA",
     "sand_fs":      "SAND layer",
-    "lasso_fs":      "L1 regularization (Lasso)",
+    "lasso_fs":     "Lasso",
+    "tabpfn_fs":    ""
 }
 
 
@@ -88,24 +89,61 @@ def log_metadata(config: Dict[str, Any]) -> None:
         logger.warning("Unknown preprocessing method %s", method)
 
 
+def impute_nans(X, metadata_flag=False, is_train=True):
+    """
+    Impute NaNs using statistics:
+    - Numeric: mean (0.0 if all NaN)
+    - Categorical/Object: mode ("missing" if all NaN)
+    
+    """
+    X_imp = X.copy()
+    num_nans = X.isna().sum().sum()
+
+    # numeric -> mean
+    num_cols = X.select_dtypes(include=['number']).columns
+    if len(num_cols) > 0:
+        means = X[num_cols].mean().fillna(0.0) # numeric stability whe all nans
+        X_imp[num_cols] = X_imp[num_cols].fillna(means)
+    
+    # cat -> mode
+    cat_cols = X.select_dtypes(include=['object', 'category']).columns
+    if len(cat_cols) > 0:
+        for col in cat_cols:
+            mode = X[col].mode()[0] if len(X[col].mode()) > 0 else 'missing'
+            X_imp[col] = X_imp[col].fillna(mode)
+    
+    if metadata_flag:
+        if num_nans > 0:
+            set_type = "training" if is_train else "test"
+            logger.info(f"Imputed {num_nans} missing values for {set_type} dataset.")
+    
+    return X_imp
+
 def run_preprocessing_pipeline(
     X_train, X_test, y_train, y_test, random_state, config, metadata_flag
 ):
     preprocessing = config["preprocessing"] # model-agnostic or model-specific
-    
+
+    X_train = impute_nans(X_train, metadata_flag)
+    X_test = impute_nans(X_test, metadata_flag, is_train=False)
+
     # AG tab data preprocessing
     feature_generator, label_cleaner = (
         AutoMLPipelineFeatureGenerator(),
         LabelCleaner.construct(problem_type=config["task_type"], y=y_train),
-
     )
+    # low cardinality -> int8, high -> cat
     X_train, y_train = (
         feature_generator.fit_transform(X_train),
         label_cleaner.transform(y_train),
     )
+    if metadata_flag: # log if first iteration
+        logger.info("Using AutoGluon's AutoMLPipelineFeatureGenerator() and LabelCleaner().")
+
     X_test, y_test = feature_generator.transform(X_test), label_cleaner.transform(y_test)
 
-    # stringify cols with nans + chance category type to object
+  
+    # handle nans + change category type to object
     if config["model"] == "catboost_tab":
         X_train = _normalize_type(X_train)
         X_test  = _normalize_type(X_test)
@@ -116,14 +154,11 @@ def run_preprocessing_pipeline(
         X_train = tab_preprocessor.fit_transform(X=X_train, y=y_train)
         X_test = tab_preprocessor.transform(X_test)
 
-    # log if first iteration
     if metadata_flag:
-        logger.info("Using AutoGluon's AutoMLPipelineFeatureGenerator() and LabelCleaner().")
         if preprocessing == "model-agnostic":
             logger.info("Model-agnostic FS/DR.")
         else:
             logger.info("Model-specific (per-fold) FS/DR.")
         log_metadata(config)
-
 
     return X_train, X_test, y_train, y_test

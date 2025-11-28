@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 from high_tab.preprocessors.sand_layer import SANDProcessor
+from high_tab.preprocessors.tabpfn_selector import TabPFNSelector
 
 class TabPreprocessor(BaseEstimator, TransformerMixin):
 
@@ -148,7 +149,12 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
             )
             mask = self._estimator.get_support()
             self._feature_names_out = X.columns[mask].tolist()
-
+        elif method == "tabpfn_fs":
+            self._estimator = TabPFNSelector(
+                num_features=config["num_features"], 
+                device=config["device"],
+            ).fit(X, y)
+            self._feature_names_out = self._estimator.selected_cols_
         else:
             raise ValueError(f"Unknown method {method}")
             
@@ -177,7 +183,7 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
             else:
                 return kbest_df
                 
-        elif method == "sand_fs":
+        elif method in ["tabpfn_fs","sand_fs"]:
             return X[self._estimator.selected_cols_]
         
         else:

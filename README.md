@@ -67,3 +67,6 @@ QSAR-TID-11: 363697
 The results are saved to .csv file along with config.yaml under the experiments/results/exp-group/run-id/dataset-name/model-name/method-name directory.
 
 
+### Comments
+Need to use TabPFN-wide fork to work with the newest tabpfn repo.
+Need to pass is_train=True to CatBoost in AG (line 149) to work correctly with the override of _preprocess

@@ -6,3 +6,15 @@
 	path = external/tabpfnwide
 	url = https://github.com/domiomi3/TabPFN-Wide.git
 	branch = main
+[submodule "external/lasso_prior"]
+	path = external/lasso_prior
+	url = https://github.com/domiomi3/lasso-prior.git
+[submodule "external/ag"]
+	path = external/ag
+	url = https://github.com/autogluon/autogluon.git
+[submodule "tabarena"]
+	path = tabarena
+	url = https://github.com/autogluon/tabarena.git
+[submodule "external/tabarena"]
+	path = external/tabarena
+	url = https://github.com/autogluon/tabarena.git

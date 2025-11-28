@@ -36,12 +36,19 @@ def prepare_data(config):
             config["num_repeats"] = config.get("num_repeats") or num_repeats_default
             config["num_folds"]   = config.get("num_folds")   or num_folds_default
         
-        return X, y, task
+        return X, y, task, None
     
     if config["csv_path"]:
         target = config["target"] 
-        # 'Population' # TODO: hardcoded now, need to pass it as arg
         df = pd.read_csv(config["csv_path"], low_memory=False, na_values=['NaN', "nan", "na", 'null', '', '?'])
+
+        if config["test_csv_path"]:
+            test_df = pd.read_csv(config["test_csv_path"], low_memory=False, na_values=['NaN', "nan", "na", 'null', '', '?'])
+            test_df_idx = len(df) 
+            df = pd.concat([df, test_df], ignore_index=True) # merge train and test sets
+        else:
+            test_df_idx = None
+
         y = df[target]
         X = df.drop(target,axis=1) 
 
@@ -56,7 +63,7 @@ def prepare_data(config):
         eval_metric = get_eval_metric(task_type)
         config["ignore_limits"] = True if X.shape[1] >500 else False
         config.update({
-            "dataset_name": "Population study",
+            "dataset_name": config["csv_path"],
             "task_type": task_type,
             "eval_metric": eval_metric,
         })
@@ -69,10 +76,11 @@ def prepare_data(config):
         logger.info("")
         logger.info("CSV dataset:")
         logger.info("======================")
+        logger.info("Dataset name: %s", config["csv_path"])
         logger.info("Task type: %s", task_type_log)
         logger.info("Dataset size: %s, %s", X.shape, y.shape)
 
-        return X, y, None
+        return X, y, None, test_df_idx
 
 
 def load_dataset(openml_id):

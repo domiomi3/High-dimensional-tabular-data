@@ -79,9 +79,9 @@ def log_mem():
     logger.info(f"CPU Memory Used: {psutil.virtual_memory().percent}%")
     if torch.cuda.is_available():
         total_mem = torch.cuda.get_device_properties(0).total_memory
-        logger.info(f"Total GPU memory: {total_mem / 1024**2:.2f} MB")
-        logger.info(f"GPU Memory Allocated: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-        logger.info(f"GPU Memory Reserved: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
+        logger.info(f"Total GPU memory: {total_mem / 1e9:.2f} GB")
+        logger.info(f"GPU Memory Allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+        logger.info(f"GPU Memory Reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
 
 def memory_cleanup():

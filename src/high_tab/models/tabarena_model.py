@@ -1,4 +1,7 @@
-from tabrepo.models.utils import get_configs_generator_from_name
+from tabrepo.models.utils import get_configs_generator_from_name as get_configs_generator_from_name_tr
+# TODO: remove this and create a separate conf for TabPFNv2
+from tabarena.models.utils import get_configs_generator_from_name
+
 from autogluon.core.models import BaggedEnsembleModel
 
 from high_tab.models.base import TabModel
@@ -59,11 +62,14 @@ class TabArenaModel(TabModel):
      
     def fit(self, X, y):
         # get TabArena config (usually empty)
-        meta = get_configs_generator_from_name(self.model_name)
+        if self.model_name=="TabPFNv2":
+            meta = get_configs_generator_from_name_tr(self.model_name)
+        else:
+            meta = get_configs_generator_from_name(self.model_name)
         model_config = meta.manual_configs[0]
         if "hyperparameters" not in model_config:
             model_config["hyperparameters"] = {}
-        if self.model_name == "TabPFNv2":
+        if self.model_name in ["RealTabPFN-v2.5", "TabPFNv2"]:
             model_config["hyperparameters"]["ag.max_features"] = 10000 # allow >500 features                        
 
         if self.preprocessing=="model-specific":

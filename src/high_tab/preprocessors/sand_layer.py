@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from tabpfn import TabPFNClassifier, TabPFNRegressor
 from tabpfn.utils import meta_dataset_collator
 
-from high_tab.utils.hardware import memory_cleanup
+from high_tab.utils.hardware import memory_cleanup, log_mem
 
 logger = logging.getLogger(__name__)
 
@@ -66,15 +66,15 @@ class SANDProcessor:
     @staticmethod
     def _to_tabpfn_arrays(X, y, task_type):
         if isinstance(X, pd.DataFrame):
-            X_np = X.to_numpy(dtype=np.float16)
+            X_np = X.to_numpy(dtype=np.float32)
         else:
-            X_np = np.asarray(X, dtype=np.float16)
+            X_np = np.asarray(X, dtype=np.float32)
         if isinstance(y, pd.Series):
             y_np = y.to_numpy()
         else:
             y_np = np.asarray(y)
         if task_type == "regression":
-            y_np = y_np.astype(np.float16)
+            y_np = y_np.astype(np.float32)
         else:
             # ensure integer class ids
             _, y_np = np.unique(y_np, return_inverse=True)
@@ -87,23 +87,16 @@ class SANDProcessor:
         inference_config = {
             "PREPROCESS_TRANSFORMS": [
                 {
-                    "name": "none",                 # or "robust", "safepower" if you want scaling
-                    "categorical_name": "numeric",  # no onehot / ordinal expansion
-                    "append_original": False,       # never append engineered cols
-                    "subsample_features": -1,       # -1 = no subsampling
-                    "global_transformer_name": None,# no SVD
-                    "differentiable": False,
-                }
+                    "name": "quantile_uni_coarse", # default scaling    
+                    "append_original": False,  
+                    "categorical_name": "numeric",  # no one-hot encoding
+                    "global_transformer_name": None,  # no svd
+                },
             ],
-            "FEATURE_SHIFT_METHOD": None,
-            "CLASS_SHIFT_METHOD": None,
-            "FINGERPRINT_FEATURE": False,
-            "MAX_UNIQUE_FOR_CATEGORICAL_FEATURES": 0,
-            "MIN_UNIQUE_FOR_NUMERICAL_FEATURES": 0,
-            "SUBSAMPLE_SAMPLES": None,
-            "POLYNOMIAL_FEATURES": "no",
+            "FINGERPRINT_FEATURE": False,  # otherwise t +1 feature
         }
         model_class = TabPFNClassifier if self.classification_task else TabPFNRegressor
+
         model_config = dict(
             ignore_pretraining_limits=True,
             device=self.device,
@@ -111,25 +104,31 @@ class SANDProcessor:
             random_state=self.random_state,
             inference_precision=torch.float16,
             inference_config=inference_config,
+            fit_mode="batched", 
+            # differentiable_input=False
         )
-        predictor = model_class(**model_config, fit_mode="batched", differentiable_input=False)
-        if self.classification_task:
-            predictor._initialize_model_variables()
-        
-        if self.model_type=="tabpfn_wide":
+
+        predictor = model_class()
+
+
+        if self.model_type=="realtabpfn_tab":
+            predictor = predictor.create_default_for_version(version="v2.5", **model_config)
+        else: # tabpfnv2_ag, tabpfn_wide, catboost
+            predictor = predictor.create_default_for_version(version="v2", **model_config)
+        if self.model_type=="tabpfn_wide": # default model is TabPFN-wide
             import types
             from tabpfn.model.loading import load_model_criterion_config, resolve_model_path
             from tabpfnwide.patches import fit, fit_from_preprocessed
             
             checkpoint_path = f"external/tabpfnwide/models/TabPFN-Wide-8k_submission.pt"
-            wide_model, _, _ = load_model_criterion_config(
+            wide_model = load_model_criterion_config(
                 model_path=None,
                 check_bar_distribution_criterion=False,
                 cache_trainset_representation=False,
                 which='classifier',
                 version='v2',
-                download=True,
-            )
+                download_if_not_exists=True,
+            )[0][0]
             checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
             wide_model.load_state_dict(checkpoint)
             wide_model.to(self.device)
@@ -137,6 +136,12 @@ class SANDProcessor:
 
             predictor.fit = types.MethodType(fit, predictor)
             predictor.fit_from_preprocessed = types.MethodType(fit_from_preprocessed, predictor)
+
+        if self.classification_task:
+            predictor._initialize_model_variables()
+
+        for model in predictor.models_:
+            model.features_per_group = 1 # disable feature grouping to keep the right feature dim
 
         return predictor
 
@@ -230,6 +235,7 @@ class SANDProcessor:
                 X_i, y_i, splitter, max_data_size=None
             )[0] for (X_i, y_i) in training_chunks
         ]
+        # del training_chunks, X_np, y_np
         finetuning_dataloader = DataLoader(
             training_datasets,
             batch_size=self.meta_batch_size,
@@ -246,42 +252,42 @@ class SANDProcessor:
             epoch_grad_sum = 0.0
             epoch_batches = 0
 
-            with torch.amp.autocast(dtype=torch.float16, device_type=self.device):
-                for data_batch in finetuning_dataloader:
-                    if self.classification_task:
-                        (X_trains_preprocessed,
+            for data_batch in finetuning_dataloader:
+                if self.classification_task:
+                    (X_trains_preprocessed,
+                    X_tests_preprocessed,
+                    y_trains_preprocessed,
+                    y_tests_preprocessed,
+                    cat_ixs,
+                    confs) = data_batch
+
+                    if len(np.unique(y_trains_preprocessed)) != len(np.unique(y_tests_preprocessed)):
+                        continue  # Skip batch if splits don't have all classes
+                else:
+                    (
+                        X_trains_preprocessed,
                         X_tests_preprocessed,
                         y_trains_preprocessed,
                         y_tests_preprocessed,
                         cat_ixs,
-                        confs) = data_batch
+                        confs,
+                        raw_bd,
+                        znorm_bd,
+                        _,
+                        _
+                    ) = data_batch
+                    predictor.raw_space_bardist_ = raw_bd[0]
+                    predictor.bardist_ = znorm_bd[0]
 
-                        if len(np.unique(y_trains_preprocessed)) != len(np.unique(y_tests_preprocessed)):
-                            continue  # Skip batch if splits don't have all classes
-                    else:
-                        (
-                            X_trains_preprocessed,
-                            X_tests_preprocessed,
-                            y_trains_preprocessed,
-                            y_tests_preprocessed,
-                            cat_ixs,
-                            confs,
-                            raw_bd,
-                            znorm_bd,
-                            _,
-                            _
-                        ) = data_batch
-                        predictor.raw_space_bardist_ = raw_bd[0]
-                        predictor.bardist_ = znorm_bd[0]
+                # lazy init SAND
+                if sand_model is None:
+                    feat_dim = X_trains_preprocessed[0].shape[-1]
+                    sand_model = self._SAND(d=feat_dim, k=self.K, sigma=self.sigma).to(self.device)
+                    optimizer = Adam(sand_model.parameters(), lr=self.lr)
 
-                    # lazy init SAND
-                    if sand_model is None:
-                        feat_dim = X_trains_preprocessed[0].shape[-1]
-                        sand_model = self._SAND(d=feat_dim, k=self.K, sigma=self.sigma).to(self.device)
-                        optimizer = Adam(sand_model.parameters(), lr=self.lr)
-
-                    optimizer.zero_grad(set_to_none=True)
-
+                optimizer.zero_grad(set_to_none=True)
+            
+                with torch.amp.autocast(dtype=torch.float16, device_type=self.device):
                     # apply SAND
                     X_train_sand = [sand_model(x.to(self.device), training=True) for x in X_trains_preprocessed]
                     X_test_sand = [sand_model(x.to(self.device), training=False) for x in X_tests_preprocessed]
@@ -289,12 +295,16 @@ class SANDProcessor:
                     with torch.no_grad():
                         fit_kwargs = {'no_refit': True}
                         if self.model_type == 'tabpfn_wide':
-                            fit_kwargs['model'] = self.wide_model # for tabpfn_wide
+                            fit_kwargs['model'] = self.wide_model
 
                         predictor.fit_from_preprocessed(
                             X_train_sand, y_trains_preprocessed, cat_ixs, confs, **fit_kwargs
                         )
-                    
+
+                        if self.classification_task and not hasattr(predictor, 'softmax_temperature_'):
+                            predictor.softmax_temperature_ = predictor.softmax_temperature
+                            predictor.tuned_classification_thresholds_ = None
+                                    
                     # freeze model
                     for p in predictor.model_.parameters(): p.requires_grad = False
                     predictor.model_.eval()
@@ -305,17 +315,18 @@ class SANDProcessor:
                     else:
                         preds, _, _ = predictor.forward(X_test_sand)
                         loss = znorm_bd[0](preds, y_tests_preprocessed.to(self.device)).mean()
-                    loss.backward()
+                
+                loss.backward()
 
-                    # grad norm (SAND only)
-                    g = sand_model.w_raw.grad
-                    if g is not None:
-                        epoch_grad_sum += float(g.detach().norm().item())
+                # grad norm (SAND only)
+                g = sand_model.w_raw.grad
+                if g is not None:
+                    epoch_grad_sum += float(g.detach().norm().item())
 
-                    optimizer.step()
+                optimizer.step()
 
-                    epoch_loss_sum += float(loss.detach().item())
-                    epoch_batches += 1
+                epoch_loss_sum += float(loss.detach().item())
+                epoch_batches += 1
 
             # per-epoch summary
             if epoch_batches == 0:
@@ -345,3 +356,4 @@ class SANDProcessor:
         memory_cleanup()
 
         return self
+    
