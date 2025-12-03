@@ -72,6 +72,20 @@ LOG_ID="${{SLURM_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
 exec >  "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.out" \
     2> "{log_dir}/${{LOG_PREFIX}}.${{LOG_ID}}.err"
 
+ # Log job information
+echo "================================================"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Array Task ID: $SLURM_ARRAY_TASK_ID"
+echo "Compute Node: $SLURM_NODELIST"
+echo "Hostname: $(hostname)"
+echo "Working Directory: $(pwd)"
+echo "Start Time: $(date)"
+echo "Method: ${{METHOD}}"
+echo "Model: ${{MODEL}}"
+echo "Data: {data_description}"
+echo "================================================"
+echo ""
+
 echo "Running method ${{METHOD}} with ${{MODEL}} on {data_description}"
 
 cd "$WORKING_DIR"

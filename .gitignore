@@ -197,4 +197,6 @@ AutogluonModels/
 *.ipynb
 *.csv
 csv_data_org/
+csv_data/
 external/lasso_checkpoints/
+test.py

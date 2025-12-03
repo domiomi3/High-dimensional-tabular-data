@@ -47,6 +47,7 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
             ).fit(X, y)
             mask = self._estimator.get_support()
             self._feature_names_out = X.columns[mask].tolist()
+            print("After fit")
             
         elif method == "tree_fs":
             base = (
@@ -152,6 +153,9 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
         elif method == "tabpfn_fs":
             self._estimator = TabPFNSelector(
                 num_features=config["num_features"], 
+                num_ensemble=config["num_ensemble"],
+                emb_layer=config["emb_layer"],
+                random_state=self.rand_state,
                 device=config["device"],
             ).fit(X, y)
             self._feature_names_out = self._estimator.selected_cols_
@@ -187,6 +191,7 @@ class TabPreprocessor(BaseEstimator, TransformerMixin):
             return X[self._estimator.selected_cols_]
         
         else:
+            print("After transform")
             X_transformed = self._estimator.transform(X)
             return pd.DataFrame(
                 X_transformed, 

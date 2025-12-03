@@ -24,7 +24,7 @@ _METHOD_FULLNAME = {
     "kpca_dr":      "Kernel PCA",
     "sand_fs":      "SAND layer",
     "lasso_fs":     "Lasso",
-    "tabpfn_fs":    ""
+    "tabpfn_fs":    "TabPFN-wide+decoder"
 }
 
 
@@ -34,11 +34,11 @@ def _normalize_type(df: pd.DataFrame, missing="NaN"):
     if len(cat_dtype_cols):
         # catboost creates cat_features based on object type not pd's categroy
         df[cat_dtype_cols] = df[cat_dtype_cols].astype(object) 
-    obj_cols = df.select_dtypes(include=["object"]).columns
-    for c in obj_cols:
-        if df[c].isna().any():
-            df[c] = df[c].fillna(missing) #convert NaN to str
-        df[c] = df[c].astype(str)
+    # obj_cols = df.select_dtypes(include=["object"]).columns
+    # for c in obj_cols:
+    #     if df[c].isna().any():
+    #         df[c] = df[c].fillna(missing) #convert NaN to str
+    #     df[c] = df[c].astype(str)
     return df
 
 
@@ -68,6 +68,7 @@ def log_metadata(config: Dict[str, Any]) -> None:
     num_feat = config["num_features"]
     vt = config["var_threshold"]
     num_trees= config["num_tree_estimators"]
+    num_ensemble = config["num_ensemble"]
 
     if method == "random_fs":
         logger.info("HPs: Maximum number of features: %d", num_feat)
@@ -85,6 +86,9 @@ def log_metadata(config: Dict[str, Any]) -> None:
         logger.info("HPs: Number of features: %d", num_feat)
     elif method == "lasso_fs":
             logger.info("HPs: Number of features: %d", num_feat)
+    elif method == "tabpfn_fs":
+            logger.info("HPs: Number of features: %d", num_feat)
+            logger.info("HPs: Number of estimators: %d", num_ensemble)
     else:
         logger.warning("Unknown preprocessing method %s", method)
 
@@ -111,7 +115,7 @@ def impute_nans(X, metadata_flag=False, is_train=True):
         for col in cat_cols:
             mode = X[col].mode()[0] if len(X[col].mode()) > 0 else 'missing'
             X_imp[col] = X_imp[col].fillna(mode)
-    
+
     if metadata_flag:
         if num_nans > 0:
             set_type = "training" if is_train else "test"
@@ -141,9 +145,12 @@ def run_preprocessing_pipeline(
         logger.info("Using AutoGluon's AutoMLPipelineFeatureGenerator() and LabelCleaner().")
 
     X_test, y_test = feature_generator.transform(X_test), label_cleaner.transform(y_test)
+    
+    # AG-produces nans
+    X_train = impute_nans(X_train, metadata_flag)
+    X_test = impute_nans(X_test, metadata_flag, is_train=False)
 
-  
-    # handle nans + change category type to object
+    # change category type to object
     if config["model"] == "catboost_tab":
         X_train = _normalize_type(X_train)
         X_test  = _normalize_type(X_test)

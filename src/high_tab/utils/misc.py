@@ -19,5 +19,8 @@ def add_method_args(config):
         method_hps["num_tree_estimators" ] = config["num_tree_estimators"]
     if method_args["method"] == "variance_fs":
         method_hps["var_threshold"] = config["var_threshold"]
+    if method_args["method"] == "tabpfn_fs":
+        method_hps["num_ensemble"] = config["num_ensemble"]
+        method_hps["emb_layer"] = config["emb_layer"]
     method_args.update(method_hps)
     return {"method_args": method_args}

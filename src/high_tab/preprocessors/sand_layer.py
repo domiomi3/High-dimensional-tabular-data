@@ -91,6 +91,7 @@ class SANDProcessor:
                     "append_original": False,  
                     "categorical_name": "numeric",  # no one-hot encoding
                     "global_transformer_name": None,  # no svd
+                    "max_features_per_estimator": 10000
                 },
             ],
             "FINGERPRINT_FEATURE": False,  # otherwise t +1 feature

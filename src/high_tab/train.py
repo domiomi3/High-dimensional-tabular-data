@@ -290,7 +290,10 @@ if __name__ == "__main__":
                         help="For the VarianceThreshold method; remove features below that number.")
     parser.add_argument("--num_tree_estimators", type=int, default=10,
                         help="For the SelectFromModel method; number of randomized decision trees.")
-
+    parser.add_argument("--num_ensemble", type=int, default=0,
+                        help="Number of TabPFN-FS estimators.")
+    parser.add_argument("--emb_layer", type=int, default=8,
+                        help="Embedding layer used for pretraining TabPFN-FS.")
     args = parser.parse_args()
 
     # data source
